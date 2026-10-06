@@ -22,7 +22,7 @@
 
 ### Windows
 
-下载 [最新版本](https://github.com/SnishaperTeam/SniShaper/releases) 中的 `snishaper-windows-amd64.7z`（便携版）或 MSIX 安装包，解压 / 安装后运行 `snishaper.exe`。程序会自动请求管理员权限（TUN 模式需要），如拒绝则 TUN 功能不可用但其他功能正常。
+下载 [最新版本](https://github.com/SnishaperTeam/FlowWeaver/releases) 中的 `snishaper-windows-amd64.7z`（便携版）或 MSIX 安装包，解压 / 安装后运行 `snishaper.exe`。程序会自动请求管理员权限（TUN 模式需要），如拒绝则 TUN 功能不可用但其他功能正常。
 
 <a href="https://apps.microsoft.com/detail/9n11mrrsfs8n" target="_self">
 <img src="https://get.microsoft.com/images/zh-cn%20dark.svg" width="200"/>
@@ -30,7 +30,7 @@
 
 ### Linux
 
-从 [最新版本](https://github.com/SnishaperTeam/SniShaper/releases) 下载 `snishaper-linux-amd64.tar.gz`，解压后运行：
+从 [最新版本](https://github.com/SnishaperTeam/FlowWeaver/releases) 下载 `snishaper-linux-amd64.tar.gz`，解压后运行：
 
 ```bash
 tar -xzf snishaper-linux-amd64.tar.gz
@@ -52,7 +52,7 @@ sudo ./SniShaper
 
 构建方式详见 **[build.md — 构建产物矩阵](build.md#构建产物矩阵12-个目标)**，产物按 `build/bin/cli/<Platform>/<Arch>/` 组织，直接运行即可进入 TUI。
 
-> **Darwin / macOS CLI 注意：** 当前 Darwin CLI 由于缺少可用于持续实机测试的 macOS 测试设备，实际使用中可能存在我们尚未预见的问题。若你在 Darwin / macOS 上发现任何异常，请及时提交 [Issue](https://github.com/SnishaperTeam/SniShaper/issues) 或 [Pull Request](https://github.com/SnishaperTeam/SniShaper/pulls)，帮助我们尽快定位和修复问题。
+> **Darwin / macOS CLI 注意：** 当前 Darwin CLI 由于缺少可用于持续实机测试的 macOS 测试设备，实际使用中可能存在我们尚未预见的问题。若你在 Darwin / macOS 上发现任何异常，请及时提交 [Issue](https://github.com/SnishaperTeam/FlowWeaver/issues) 或 [Pull Request](https://github.com/SnishaperTeam/FlowWeaver/pulls)，帮助我们尽快定位和修复问题。
 
 ### 证书重新安装
 

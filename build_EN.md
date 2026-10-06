@@ -72,7 +72,7 @@ Verify artifacts with `file build/bin/gui/Linux/arm64/SniShaper` (ELF aarch64) o
 
 ```powershell
 # Clone the repository
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # Full compilation (interactive mode, auto-installs deps, optional MSIX)
@@ -162,7 +162,7 @@ sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
 ```bash
 # Clone the repository
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # Interactive menu (1 GUI / 2 CLI / 3 GUI+CLI + architecture selection)

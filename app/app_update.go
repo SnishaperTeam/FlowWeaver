@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	githubRepo      = "SnishaperTeam/SniShaper"
+	githubRepo      = "SnishaperTeam/FlowWeaver"
 	githubAPIBase   = "https://api.github.com/repos/" + githubRepo
 	githubProxyBase = "https://gh.llkk.cc/"
 	updateUserAgent = "SniShaper-Update/1.0"

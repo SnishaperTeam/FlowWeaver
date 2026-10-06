@@ -22,7 +22,7 @@
 
 ### Windows
 
-Скачайте `snishaper-windows-amd64.7z` (портативная версия) или MSIX-установщик из [последнего релиза](https://github.com/SnishaperTeam/SniShaper/releases), распакуйте / установите и запустите `snishaper.exe`. Приложение автоматически запрашивает права администратора (требуются для TUN). Если повышение прав не удалось, TUN недоступен, но остальные функции работают.
+Скачайте `snishaper-windows-amd64.7z` (портативная версия) или MSIX-установщик из [последнего релиза](https://github.com/SnishaperTeam/FlowWeaver/releases), распакуйте / установите и запустите `snishaper.exe`. Приложение автоматически запрашивает права администратора (требуются для TUN). Если повышение прав не удалось, TUN недоступен, но остальные функции работают.
 
 <a href="https://apps.microsoft.com/detail/9n11mrrsfs8n" target="_self">
 <img src="https://get.microsoft.com/images/ru-ru%20dark.svg" width="200"/>
@@ -30,7 +30,7 @@
 
 ### Linux
 
-Скачайте `snishaper-linux-amd64.tar.gz` из [последнего релиза](https://github.com/SnishaperTeam/SniShaper/releases), распакуйте и запустите:
+Скачайте `snishaper-linux-amd64.tar.gz` из [последнего релиза](https://github.com/SnishaperTeam/FlowWeaver/releases), распакуйте и запустите:
 
 ```bash
 tar -xzf snishaper-linux-amd64.tar.gz
@@ -52,7 +52,7 @@ sudo ./SniShaper
 
 Инструкции по сборке см. в **[build_RU.md — Матрица артефактов](build_RU.md#матрица-артефактов-12-целей)**. Артефакты организованы в `build/bin/cli/<Platform>/<Arch>/` — просто запустите бинарник для входа в TUI.
 
-> **Примечание для CLI Darwin / macOS:** В настоящее время у Darwin CLI нет отдельного устройства macOS для постоянного тестирования в реальных условиях, поэтому при использовании могут возникать непредвиденные или пока неизвестные проблемы. Если вы обнаружите какие-либо проблемы на Darwin / macOS, пожалуйста, своевременно создайте [Issue](https://github.com/SnishaperTeam/SniShaper/issues) или [Pull Request](https://github.com/SnishaperTeam/SniShaper/pulls), чтобы мы могли быстрее их изучить и исправить.
+> **Примечание для CLI Darwin / macOS:** В настоящее время у Darwin CLI нет отдельного устройства macOS для постоянного тестирования в реальных условиях, поэтому при использовании могут возникать непредвиденные или пока неизвестные проблемы. Если вы обнаружите какие-либо проблемы на Darwin / macOS, пожалуйста, своевременно создайте [Issue](https://github.com/SnishaperTeam/FlowWeaver/issues) или [Pull Request](https://github.com/SnishaperTeam/FlowWeaver/pulls), чтобы мы могли быстрее их изучить и исправить.
 
 ### Переустановка сертификата
 

@@ -102,7 +102,7 @@ Windows 上可用 `dumpbin /headers build\bin\cli\Windows\arm64\snishaper.exe`�
 
 ```powershell
 # 克隆仓库
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # 完整编译（交互模式，自动安装依赖、可选 MSIX 打包）
@@ -192,7 +192,7 @@ sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
 ```bash
 # 克隆仓库
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # 交互式菜单（1 GUI / 2 CLI / 3 GUI+CLI + 架构选择）

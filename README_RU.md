@@ -1,12 +1,42 @@
-# SniShaper
+# FlowWeaver
 
 [中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md)
 
-[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![License](https://img.shields.io/badge/Лицензия-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![Wiki](https://img.shields.io/badge/Документация-Wiki-orange?style=flat&logo=readthedocs)](https://github.com/SnishaperTeam/SniShaper/wiki) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/SniShaper?style=flat&logo=github&label=Релиз)](https://github.com/SnishaperTeam/SniShaper/releases) [![GitHub Downloads](https://img.shields.io/github/downloads/SnishaperTeam/SniShaper/total?style=flat&logo=github&label=Загрузки)](https://github.com/SnishaperTeam/SniShaper/releases) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/SniShaper?style=flat&logo=git&label=Последний%20коммит)](https://github.com/SnishaperTeam/SniShaper/commits/main) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SnishaperTeam/SniShaper/build.yml?style=flat&logo=githubactions&label=CI)](https://github.com/SnishaperTeam/SniShaper/actions)
+[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![License](https://img.shields.io/badge/Лицензия-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![Wiki](https://img.shields.io/badge/Документация-Wiki-orange?style=flat&logo=readthedocs)](https://github.com/SnishaperTeam/FlowWeaver/wiki) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=Релиз)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub Downloads](https://img.shields.io/github/downloads/SnishaperTeam/FlowWeaver/total?style=flat&logo=github&label=Загрузки)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=Последний%20коммит)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SnishaperTeam/FlowWeaver/build.yml?style=flat&logo=githubactions&label=CI)](https://github.com/SnishaperTeam/FlowWeaver/actions)
 
-**SniShaper** — это локальный прокси-инструмент для сложных сетевых условий, использующий **инъекцию ECH**, **фрагментацию TLS**, **преобразование QUIC**, **миграцию сессий** и другие решения, обеспечивая стабильный и гибкий доступ в интернет.
+**FlowWeaver** — это полнофункциональный локальный прокси-клиент и шлюз, построенный вокруг **подписок Clash**, **мультипротокольных узлов**, **виртуального TUN-адаптера** и **туннелей WireGuard**, для тех, кому нужен стабильный и управляемый доступ в сложных сетевых условиях.
 
 Проект поддерживает кроссплатформенность. Подробности — в **[Platform_RU.md](Platform_RU.md)**.
+
+---
+
+## Отношение к SniShaper
+
+Этот проект вырос из [SniShaper](https://github.com/SnishaperTeam/FlowWeaver) и ведётся тем же мейнтейнером. Оба проекта **активно поддерживаются**, но решают разные задачи:
+
+| | [SniShaper](https://github.com/SnishaperTeam/FlowWeaver) | FlowWeaver |
+|---|---|---|
+| Направленность | Лёгкий прокси-сервер | Полнофункциональный клиент / шлюз |
+| Сильные стороны | Инъекция ECH, фрагментация TLS, миграция сессий | Подписки Clash, мультипротокольные узлы, WireGuard, TUN-шлюз |
+| Зависимости | Минимальные, удобно для развёртывания сервера | Приоритет функций, зависимостей больше |
+| Сопровождение | Продолжается | Продолжается |
+
+Проекты используют часть общих идей (плоскость данных sing-tun, обработка uTLS/ECH), но **поддерживают разные кодовые базы** и развиваются независимо. Форматы файлов подписок и правил совместимы, их можно импортировать в любой из проектов.
+
+---
+
+## Отношение к SniShaper
+
+Этот проект вырос из [SniShaper](https://github.com/SnishaperTeam/SniShaper) и ведётся тем же мейнтейнером. Оба проекта **активно поддерживаются**, но решают разные задачи:
+
+| | [SniShaper](https://github.com/SnishaperTeam/SniShaper) | FlowWeaver |
+|---|---|---|
+| Направленность | Лёгкий прокси-сервер | Полнофункциональный клиент / шлюз |
+| Сильные стороны | Инъекция ECH, фрагментация TLS, миграция сессий | Подписки Clash, мультипротокольные узлы, WireGuard, TUN-шлюз |
+| Зависимости | Минимальные, удобно для развёртывания сервера | Приоритет функций, зависимостей больше |
+| Сопровождение | Продолжается | Продолжается |
+
+Проекты используют часть общих идей (плоскость данных sing-tun, обработка uTLS/ECH), но **поддерживают разные кодовые базы** и развиваются независимо. Форматы файлов подписок и правил совместимы, их можно импортировать в любой из проектов.
 
 ---
 
@@ -27,7 +57,7 @@
 
 Проект изначально разрабатывался только под Windows, а позднее была добавлена поддержка Linux. Сейчас доступны как GUI, так и CLI.
 
-Для большинства пользователей мы рекомендуем скачать последнюю стабильную сборку для Windows прямо из [Releases](https://github.com/SnishaperTeam/SniShaper/releases).
+Для большинства пользователей мы рекомендуем скачать последнюю стабильную сборку для Windows прямо из [Releases](https://github.com/SnishaperTeam/FlowWeaver/releases).
 
 По остальным платформам и инструкциям по сборке обратитесь к следующим документам:
 
@@ -38,12 +68,12 @@
 
 ## Документация
 
-Для получения подробных технических принципов, руководств по развертыванию и настройке, обратитесь к [**GitHub Wiki**](https://github.com/SnishaperTeam/SniShaper/wiki):
+Для получения подробных технических принципов, руководств по развертыванию и настройке, обратитесь к [**GitHub Wiki**](https://github.com/SnishaperTeam/FlowWeaver/wiki):
 
-- **[Основные режимы прокси](https://github.com/SnishaperTeam/SniShaper/wiki/Core-Proxy-Modes)**: понимание принципов работы TLS-RF, QUIC и серверного режима.
-- **[Руководство по правилам](https://github.com/SnishaperTeam/SniShaper/wiki/Custom-Rules-Guide)**: как разрабатывать целевые правила.
-- **[Настройка GUI](https://github.com/SnishaperTeam/SniShaper/wiki/GUI-Configuration)**: быстрая настройка правил в интерфейсе.
-- **[Устранение неполадок](https://github.com/SnishaperTeam/SniShaper/wiki/FAQ)**: решение проблем с сертификатами, правилами и другим.
+- **[Основные режимы прокси](https://github.com/SnishaperTeam/FlowWeaver/wiki/Core-Proxy-Modes)**: понимание принципов работы TLS-RF, QUIC и серверного режима.
+- **[Руководство по правилам](https://github.com/SnishaperTeam/FlowWeaver/wiki/Custom-Rules-Guide)**: как разрабатывать целевые правила.
+- **[Настройка GUI](https://github.com/SnishaperTeam/FlowWeaver/wiki/GUI-Configuration)**: быстрая настройка правил в интерфейсе.
+- **[Устранение неполадок](https://github.com/SnishaperTeam/FlowWeaver/wiki/FAQ)**: решение проблем с сертификатами, правилами и другим.
 
 ---
 
@@ -66,9 +96,9 @@
 
 ### Значки активности
 
-[![GitHub contributors](https://img.shields.io/github/contributors/SnishaperTeam/SniShaper?style=flat&label=Всего участников)](https://github.com/SnishaperTeam/SniShaper/graphs/contributors)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/SnishaperTeam/SniShaper?style=flat&label=Коммитов в месяц)](https://github.com/SnishaperTeam/SniShaper/graphs/contributors)
-[![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/SniShaper?style=flat&label=Последний коммит)](https://github.com/SnishaperTeam/SniShaper/commits/main)
+[![GitHub contributors](https://img.shields.io/github/contributors/SnishaperTeam/FlowWeaver?style=flat&label=Всего участников)](https://github.com/SnishaperTeam/FlowWeaver/graphs/contributors)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/SnishaperTeam/FlowWeaver?style=flat&label=Коммитов в месяц)](https://github.com/SnishaperTeam/FlowWeaver/graphs/contributors)
+[![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&label=Последний коммит)](https://github.com/SnishaperTeam/FlowWeaver/commits/main)
 
 ### Тренд активности
 
@@ -81,18 +111,18 @@
 ### Граф участников
 
 <div align="center">
-<a href="https://github.com/SnishaperTeam/SniShaper/graphs/contributors" target="_blank">
-<img src="https://contrib.rocks/image?repo=SnishaperTeam/SniShaper" alt="Contributors" />
+<a href="https://github.com/SnishaperTeam/FlowWeaver/graphs/contributors" target="_blank">
+<img src="https://contrib.rocks/image?repo=SnishaperTeam/FlowWeaver" alt="Contributors" />
 </a>
 </div>
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=snishaper%2Fsnishaper&type=timeline&logscale=&releases=&legend=bottom-right">
+<a href="https://www.star-history.com/?repos=SnishaperTeam%2FFlowWeaver&type=timeline&logscale=&releases=&legend=bottom-right">
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=snishaper/snishaper&type=timeline&theme=dark&logscale&legend=bottom-right" />
-<source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=snishaper/snishaper&type=timeline&logscale&legend=bottom-right" />
-<img alt="Star History Chart" src="https://api.star-history.com/chart?repos=snishaper/snishaper&type=timeline&logscale&legend=bottom-right" />
+<source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=SnishaperTeam/FlowWeaver&type=timeline&theme=dark&logscale&legend=bottom-right" />
+<source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=SnishaperTeam/FlowWeaver&type=timeline&logscale&legend=bottom-right" />
+<img alt="Star History Chart" src="https://api.star-history.com/chart?repos=SnishaperTeam/FlowWeaver&type=timeline&logscale&legend=bottom-right" />
 </picture>
 </a>
 

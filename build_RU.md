@@ -72,7 +72,7 @@
 
 ```powershell
 # Клонировать репозиторий
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # Полная компиляция (интерактивный режим, автоустановка зависимостей, опционально MSIX)
@@ -162,7 +162,7 @@ sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 
 ```bash
 # Клонировать репозиторий
-git clone https://github.com/SnishaperTeam/SniShaper.git
+git clone https://github.com/SnishaperTeam/FlowWeaver.git
 cd SniShaper
 
 # Интерактивное меню (1 GUI / 2 CLI / 3 GUI+CLI + выбор архитектуры)

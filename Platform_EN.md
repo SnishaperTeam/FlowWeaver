@@ -22,7 +22,7 @@ This project provides cross-platform support: **Windows and Linux** share the sa
 
 ### Windows
 
-Download `snishaper-windows-amd64.7z` (portable) or the MSIX installer from the [latest release](https://github.com/SnishaperTeam/SniShaper/releases), then extract / install and run `snishaper.exe`. The app requests admin elevation (required for TUN mode). If elevation fails, TUN is unavailable but other features work normally.
+Download `snishaper-windows-amd64.7z` (portable) or the MSIX installer from the [latest release](https://github.com/SnishaperTeam/FlowWeaver/releases), then extract / install and run `snishaper.exe`. The app requests admin elevation (required for TUN mode). If elevation fails, TUN is unavailable but other features work normally.
 
 <a href="https://apps.microsoft.com/detail/9n11mrrsfs8n" target="_self">
 <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200"/>
@@ -30,7 +30,7 @@ Download `snishaper-windows-amd64.7z` (portable) or the MSIX installer from the 
 
 ### Linux
 
-Download `snishaper-linux-amd64.tar.gz` from the [latest release](https://github.com/SnishaperTeam/SniShaper/releases), then extract and run:
+Download `snishaper-linux-amd64.tar.gz` from the [latest release](https://github.com/SnishaperTeam/FlowWeaver/releases), then extract and run:
 
 ```bash
 tar -xzf snishaper-linux-amd64.tar.gz
@@ -52,7 +52,7 @@ Don't need a GUI, or working in a server / SSH environment? This repository incl
 
 For build instructions, see **[build_EN.md — Artifact Matrix](build_EN.md#artifact-matrix-12-targets)**. Artifacts are organized under `build/bin/cli/<Platform>/<Arch>/` — just run the binary to enter the TUI.
 
-> **Darwin / macOS CLI Notice:** The Darwin CLI currently does not have a dedicated macOS test machine for continuous real-world testing, so unexpected or currently unknown issues may occur. If you encounter any problems on Darwin / macOS, please report them promptly by opening an [Issue](https://github.com/SnishaperTeam/SniShaper/issues) or a [Pull Request](https://github.com/SnishaperTeam/SniShaper/pulls), so we can investigate and fix them.
+> **Darwin / macOS CLI Notice:** The Darwin CLI currently does not have a dedicated macOS test machine for continuous real-world testing, so unexpected or currently unknown issues may occur. If you encounter any problems on Darwin / macOS, please report them promptly by opening an [Issue](https://github.com/SnishaperTeam/FlowWeaver/issues) or a [Pull Request](https://github.com/SnishaperTeam/FlowWeaver/pulls), so we can investigate and fix them.
 
 ### Certificate Re-install
 

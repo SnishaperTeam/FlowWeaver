@@ -102,10 +102,10 @@ const About: React.FC = () => {
   const channelConf = channelMap[releaseChannel] || channelMap.stable;
 
   const handleOpenWebsite = () => OpenURL('https://jetcpp.ccwu.cc');
-  const handleOpenGitHub = () => OpenURL('https://github.com/SnishaperTeam/SniShaper');
-  const handleOpenBeta = () => OpenURL('https://github.com/SnishaperTeam/SniShaper/actions');
-  const handleOpenAdaptation = () => OpenURL('https://github.com/SnishaperTeam/SniShaper/issues/95');
-  const handleOpenDevPlan = () => OpenURL('https://github.com/SnishaperTeam/SniShaper/issues/36');
+  const handleOpenGitHub = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver');
+  const handleOpenBeta = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/actions');
+  const handleOpenAdaptation = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/issues/95');
+  const handleOpenDevPlan = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/issues/36');
 
   const handleCheckUpdate = async () => {
     if (checkingUpdate) return;
@@ -197,7 +197,7 @@ const About: React.FC = () => {
     { icon: <Heart size={22} />, title: t('about.contributors'), value: 'mechrevo, dongzheyu, JetCPP-dongle', color: 'success.main', valueColor: 'text.primary' },
     { icon: <Users size={22} />, title: t('about.maintainers'), value: 'JetCPP Team, SniShaper Team', color: 'warning.main', valueColor: 'text.primary' },
     { icon: <Globe size={22} />, title: t('about.website'), value: 'jetcpp.ccwu.cc', color: 'primary.main', valueColor: 'primary.main', onClick: handleOpenWebsite },
-    { icon: <RefreshCcw size={22} />, title: 'GitHub', value: 'SnishaperTeam/SniShaper', color: 'text.primary', valueColor: 'text.primary', onClick: handleOpenGitHub },
+    { icon: <RefreshCcw size={22} />, title: 'GitHub', value: 'SnishaperTeam/FlowWeaver', color: 'text.primary', valueColor: 'text.primary', onClick: handleOpenGitHub },
     { icon: <Download size={22} />, title: t('about.latest_beta'), value: t('about.actions_build'), color: 'warning.main', valueColor: 'warning.main', onClick: handleOpenBeta },
   ];
 
@@ -421,7 +421,7 @@ const About: React.FC = () => {
                   <AlertCircle size={28} />
                   <Typography sx={{ fontSize: '0.8125rem', fontWeight: 700 }}>{t('about.no_assets')}</Typography>
                   <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', textAlign: 'center' }}>{t('about.no_assets_desc')}</Typography>
-                  <Button size="small" variant="outlined" sx={{ mt: 1 }} startIcon={<ExternalLink size={14} />} onClick={() => OpenURL('https://github.com/SnishaperTeam/SniShaper/releases')}>
+                  <Button size="small" variant="outlined" sx={{ mt: 1 }} startIcon={<ExternalLink size={14} />} onClick={() => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/releases')}>
                     {t('about.open_github')}
                   </Button>
                 </Box>
