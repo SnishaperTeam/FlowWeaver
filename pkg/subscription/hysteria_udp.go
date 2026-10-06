@@ -19,11 +19,11 @@ import (
 // split across fragments and reassembled by session id:
 //
 //	UDPRequest (0x402) body:
-//	  [varint session id][fragment id][fragment count][fragment index]
+//	  [4-byte big-endian session id][fragment index][fragment count]
 //	  [address][padding][data]
 //
-// Only the first fragment carries the address; later fragments use the None
-// marker and are matched to their session.
+// Only the first fragment carries the address; later fragments use a zero
+// length marker and are matched to their session.
 type hysteriaUDPPacketConn struct {
 	session *hysteriaSession
 	// readBuf holds a reassembled datagram waiting to be handed over.

@@ -81,6 +81,23 @@ func TestStoreActivateUnknown(t *testing.T) {
 	}
 }
 
+func TestStoreActivateRejectsEmptyNodes(t *testing.T) {
+	s, _ := newTestStore(t)
+	entry := s.AddEntryForTest("empty", "https://example.com/sub")
+
+	if err := s.SetActive(entry.ID); err == nil {
+		t.Error("activating a zero-node subscription must fail")
+	}
+	if s.ActiveID() != DefaultSubscriptionID {
+		t.Errorf("active = %q, want builtin", s.ActiveID())
+	}
+
+	s.SetNodesForTest(entry.ID, []Node{{Name: "n1", Type: "ss"}})
+	if err := s.SetActive(entry.ID); err != nil {
+		t.Fatalf("activate after adding nodes: %v", err)
+	}
+}
+
 func TestStoreDeleteFallsBackToBuiltin(t *testing.T) {
 	s, _ := newTestStore(t)
 	seedEntry(s, "alpha", false, []string{"a.com"})

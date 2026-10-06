@@ -21,6 +21,7 @@ import (
 	"snishaper/pkg/cfpool"
 	"snishaper/pkg/dohresolver"
 	"snishaper/pkg/netiface"
+	"snishaper/pkg/subscription"
 
 	"github.com/miekg/dns"
 	utls "github.com/refraction-networking/utls"
@@ -764,6 +765,8 @@ func (p *ProxyServer) Stop() error {
 		p.cfPool.Stop()
 	}
 
+	subscription.ReleaseWireguardDialers()
+
 	mainLn := p.mainListener
 	httpChanLn := p.httpChanLn
 	socks5ChanLn := p.socks5ChanLn
@@ -1215,7 +1218,17 @@ func domainMatchScore(host, domain string) int {
 			return -1
 		}
 		if re.MatchString(host) {
-			return 900 + len(pattern) // exact(1000+) > regex(900+) > suffix/exact-domain
+			return 900 + len(pattern) // exact(1000+) > regex(900+) > keyword(800+) > suffix
+		}
+		return -1
+	}
+
+	// DOMAIN-KEYWORD rules arrive as "*keyword*" (see the subscription
+	// converter). Substring match, scored below regex but above plain suffix.
+	if strings.HasPrefix(domain, "*") && strings.HasSuffix(domain, "*") && len(domain) > 2 {
+		keyword := strings.ToLower(domain[1 : len(domain)-1])
+		if keyword != "" && strings.Contains(host, keyword) {
+			return 800 + len(keyword)
 		}
 		return -1
 	}

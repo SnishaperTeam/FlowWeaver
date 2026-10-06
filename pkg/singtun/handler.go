@@ -655,10 +655,11 @@ func (h *Handler) forwardUDPRelay(ctx context.Context, conn N.PacketConn, remote
 					return
 				}
 
-				// Ownership moves to WritePacket on success; on failure we
-				// still have to release it ourselves.
+				// sing-tun's UDPBackWriter.WritePacket releases the buffer on
+				// both success and error (defer packetBuffer.Release()), and
+				// the subscription PacketConns do the same, so the caller must
+				// never release after handing the buffer over.
 				if err := conn.WritePacket(responsePacket, source); err != nil {
-					responsePacket.Release()
 					h.logf("[sing-tun] failed to write relayed UDP response: " + err.Error())
 					return
 				}

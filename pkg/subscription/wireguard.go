@@ -99,6 +99,13 @@ func releaseWireguardDialer() {
 	}
 }
 
+// ReleaseWireguardDialers closes every pooled WireGuard tunnel. Call it when
+// the active subscription changes or the proxy shuts down; the next dial
+// through a WireGuard node rebuilds its tunnel from scratch.
+func ReleaseWireguardDialers() {
+	releaseWireguardDialer()
+}
+
 // wireguardPoolKey identifies a tunnel by everything that shapes it.
 func wireguardPoolKey(node Node) string {
 	return strings.Join([]string{

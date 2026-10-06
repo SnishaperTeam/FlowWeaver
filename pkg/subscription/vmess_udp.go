@@ -136,40 +136,42 @@ func (c *vmessUDPPacketConn) WritePacket(buffer *buf.Buffer, destination M.Socks
 
 // ReadPacket reads the next framed datagram.
 func (c *vmessUDPPacketConn) ReadPacket(buffer *buf.Buffer) (M.Socksaddr, error) {
-	c.mu.Lock()
-	if c.closed {
+	for {
+		c.mu.Lock()
+		if c.closed {
+			c.mu.Unlock()
+			return M.Socksaddr{}, net.ErrClosed
+		}
+		conn := c.conn
 		c.mu.Unlock()
-		return M.Socksaddr{}, net.ErrClosed
-	}
-	conn := c.conn
-	c.mu.Unlock()
 
-	if conn == nil {
-		return M.Socksaddr{}, io.EOF
-	}
+		if conn == nil {
+			return M.Socksaddr{}, io.EOF
+		}
 
-	_ = conn.SetReadDeadline(time.Now().Add(defaultDialTimeout))
-	payload, source, status, err := readXUDPFrame(conn)
-	if err != nil {
-		c.resetConn()
-		return M.Socksaddr{}, err
-	}
+		_ = conn.SetReadDeadline(time.Now().Add(defaultDialTimeout))
+		payload, source, status, err := readXUDPFrame(conn)
+		if err != nil {
+			c.resetConn()
+			return M.Socksaddr{}, err
+		}
 
-	if status&xudpStatusEnd != 0 {
-		c.resetConn()
-		return M.Socksaddr{}, io.EOF
-	}
-	if len(payload) == 0 {
-		// A control frame with no payload; wait for the next one.
-		return c.ReadPacket(buffer)
-	}
+		if status&xudpStatusEnd != 0 {
+			c.resetConn()
+			return M.Socksaddr{}, io.EOF
+		}
+		if len(payload) == 0 {
+			// A control frame with no payload; wait for the next one.
+			continue
+		}
 
-	buffer.Write(payload)
+		buffer.Write(payload)
 
-	c.mu.Lock()
-	c.source = source
-	c.mu.Unlock()
-	return source, nil
+		c.mu.Lock()
+		c.source = source
+		c.mu.Unlock()
+		return source, nil
+	}
 }
 
 func (c *vmessUDPPacketConn) resetConn() {
@@ -315,10 +317,13 @@ func (c *vmessUDPPacketConn) Close() error {
 
 	if conn != nil {
 		// Best effort: tell the server the session is finished. The frame still
-		// needs a well formed address, so the last destination is reused.
-		end := buildXUDPFrame(c.session, xudpStatusEnd, last, nil, nil)
-		_ = conn.SetWriteDeadline(time.Now().Add(time.Second))
-		_, _ = conn.Write(end)
+		// needs a well formed address, so the last seen destination is reused;
+		// without one the END frame is skipped rather than sent malformed.
+		if last.IsValid() {
+			end := buildXUDPFrame(c.session, xudpStatusEnd, last, nil, nil)
+			_ = conn.SetWriteDeadline(time.Now().Add(time.Second))
+			_, _ = conn.Write(end)
+		}
 		return conn.Close()
 	}
 	return nil

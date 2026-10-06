@@ -186,8 +186,13 @@ func (s *Store) SetActive(id string) error {
 	if entry == nil {
 		return fmt.Errorf("subscription %q not found", id)
 	}
-	if !entry.Builtin && len(entry.Nodes) == 0 && entry.Error != "" {
-		return fmt.Errorf("subscription %q has no usable nodes: %s", entry.Name, entry.Error)
+	// A rules-only subscription (no nodes, but site groups) is activatable;
+	// an entry with neither nodes nor rules can carry nothing and is rejected.
+	if !entry.Builtin && len(entry.Nodes) == 0 && len(entry.SiteGroups) == 0 {
+		if entry.Error != "" {
+			return fmt.Errorf("subscription %q has no usable nodes: %s", entry.Name, entry.Error)
+		}
+		return fmt.Errorf("subscription %q has no usable nodes", entry.Name)
 	}
 
 	s.activeID = id
@@ -370,11 +375,27 @@ func (s *Store) ActiveSiteGroups() []SiteGroup {
 	return entry.SiteGroups
 }
 
-// ActiveEntry returns the active subscription.
+// ActiveEntry returns a snapshot of the active subscription. The copy is made
+// under the store lock, so callers may read the fields without holding it —
+// Update and Add mutate the live entry concurrently.
 func (s *Store) ActiveEntry() *Entry {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.find(s.activeID)
+
+	entry := s.find(s.activeID)
+	if entry == nil {
+		return nil
+	}
+
+	cloned := *entry
+	cloned.Selection = make(map[string]string, len(entry.Selection))
+	for k, v := range entry.Selection {
+		cloned.Selection[k] = v
+	}
+	cloned.Nodes = append([]Node(nil), entry.Nodes...)
+	cloned.Groups = append([]Group(nil), entry.Groups...)
+	cloned.SiteGroups = append([]SiteGroup(nil), entry.SiteGroups...)
+	return &cloned
 }
 
 func pruneSelection(selection map[string]string, groups []Group) map[string]string {

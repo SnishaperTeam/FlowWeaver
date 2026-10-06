@@ -32,11 +32,15 @@ func (rm *RuleManager) GetSubscriptionStore() *subscription.Store {
 
 // ApplyActiveSubscriptionRules rebuilds the runtime rule set from the active
 // subscription. The built-in default subscription restores the shipped rules.
+// Pooled WireGuard tunnels are dropped here: a stale tunnel would keep its
+// device, IP stack and UDP socket alive after the node set changed.
 func (rm *RuleManager) ApplyActiveSubscriptionRules() {
 	store := rm.GetSubscriptionStore()
 	if store == nil {
 		return
 	}
+
+	subscription.ReleaseWireguardDialers()
 
 	active := store.ActiveEntry()
 	if active == nil {
@@ -76,14 +80,14 @@ func (rm *RuleManager) ApplyActiveSubscriptionRules() {
 }
 
 // activeSubscriptionID returns the active subscription id, or "" when no store
-// is attached. It never takes rm.mu, so it is safe to call from code paths that
-// already hold the RuleManager lock.
+// is attached. It reads rm.subscriptions directly because its only caller
+// (saveRulesConfig) already holds the RuleManager write lock; going through
+// GetSubscriptionStore would RLock the same mutex and deadlock.
 func (rm *RuleManager) activeSubscriptionID() string {
-	store := rm.GetSubscriptionStore()
-	if store == nil {
+	if rm.subscriptions == nil {
 		return ""
 	}
-	return store.ActiveID()
+	return rm.subscriptions.ActiveID()
 }
 
 // snapshotBuiltinSiteGroups stores the shipped rules so the default

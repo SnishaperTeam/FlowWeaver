@@ -141,11 +141,9 @@ func ConvertRules(cfg *ParsedConfig) []SiteGroup {
 		if agg.proxied {
 			agg.domains = dedupeDomains(agg.domains)
 		} else {
-			// A catch-all only carries meaning for a proxied target; a
-			// DIRECT catch-all would swallow every proxied domain.
-			if hasWildcard(agg.domains) {
-				continue
-			}
+			// A DIRECT catch-all is kept: it scores below every concrete
+			// domain rule, so it only routes what nothing else matched while
+			// preserving the subscription's MATCH,DIRECT semantics.
 			agg.domains = dedupeDomains(agg.domains)
 		}
 

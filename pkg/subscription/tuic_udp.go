@@ -179,6 +179,9 @@ func parseTUICPacket(frame []byte) ([]byte, M.Socksaddr, bool) {
 	if err != nil {
 		return nil, M.Socksaddr{}, false
 	}
+	if size < addrLen {
+		return nil, M.Socksaddr{}, false
+	}
 	// The payload follows the address and runs to the end of the datagram.
 	payload := rest[addrLen:size]
 

@@ -152,8 +152,10 @@ func dialShadowsocks(cipherName, password, serverAddr, network string) (net.Conn
 }
 
 // AEAD-2022 spec detail: the length chunk and the payload chunk of one frame
-// use different nonces and different subkeys. Payload nonces are offset by
-// 0x10000 so they never collide with length nonces.
+// use different nonces and different subkeys. nextPayloadNonce reads the
+// counter AFTER nextNonce has incremented it, so for chunk k the payload nonce
+// counter is k+1+0x10000; the masking HKDF and both chunk keys are derived
+// from the first 8 bytes of their respective nonces.
 const ssPayloadNonceOffset = 0x10000
 
 func (c *shadowsocksConn) newAEADWithNonce(nonce []byte) (cipher.AEAD, error) {
