@@ -803,7 +803,7 @@ const Settings: React.FC<SettingsProps> = ({ cache, onCacheUpdate, currentThemeI
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="SniShaper"
+                    placeholder="FlowWeaver"
                     value={adapterName}
                     onChange={(e) => setAdapterName(e.target.value)}
                     onBlur={() => saveTUNField({ adapter_name: adapterName.trim() })}

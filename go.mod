@@ -40,6 +40,11 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
+	github.com/metacubex/gvisor v0.0.0-20260826100401-79317d808312 // indirect
+	github.com/metacubex/mipstack v0.0.0-20260930071539-961d4b1c1983 // indirect
+	github.com/metacubex/sing v0.5.7 // indirect
+	github.com/metacubex/sing-wireguard v0.0.0-20261002050126-e5fa1a607406 // indirect
+	github.com/metacubex/wireguard-go v0.0.0-20250820062549-a6cecdd7f57f // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
@@ -48,6 +53,7 @@ require (
 	github.com/sagernet/gvisor v0.0.0-20260727.0-sing-box-mod.1 // indirect
 	github.com/sagernet/netlink v0.0.0-20240612041022-b9a21c07ac6a // indirect
 	github.com/sagernet/nftables v0.3.0-mod.4 // indirect
+	github.com/sagernet/wireguard-go v0.0.7 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/webx-top/com v1.3.30 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
@@ -57,4 +63,5 @@ require (
 	golang.org/x/term v0.46.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

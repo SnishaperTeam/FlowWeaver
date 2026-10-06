@@ -87,6 +87,20 @@ func commandCatalog() []commandGroup {
 			},
 		},
 		{
+			Title: "订阅",
+			Items: []commandEntry{
+				{"sub list", "查看订阅列表（当前生效项标 *）"},
+				{"sub add <地址> [名称]", "导入 Clash 订阅（名称缺省从地址推断）"},
+				{"sub delete <名称|ID>", "删除订阅"},
+				{"sub update [名称|ID]", "更新订阅（不带参数则更新当前订阅）"},
+				{"sub use <名称|ID>", "启用订阅并加载其规则"},
+				{"sub current", "查看当前订阅与各组选中的节点"},
+				{"sub nodes [名称|ID]", "列出订阅的代理组与节点"},
+				{"sub select <组> <节点>", "为某个代理组选择节点"},
+				{"sub test [名称|ID]", "逐个测试订阅节点的连通性"},
+			},
+		},
+		{
 			Title: "更新",
 			Items: []commandEntry{
 				{"update check", "检查新版本并列出可用资产"},

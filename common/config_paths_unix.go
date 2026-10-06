@@ -18,6 +18,13 @@ func ConfigRulesPath(execDir string) string {
 	return p
 }
 
+// ConfigSubscriptionPath resolves the subscription store path. It sits next to
+// the rules file so both live in the same user config directory.
+func ConfigSubscriptionPath(execDir string) string {
+	p, _ := EnsureUserConfig(execDir, filepath.Join("rules", "subscriptions.json"))
+	return p
+}
+
 // ConfigCertDir resolves the certificate directory for the current platform.
 func ConfigCertDir(_ string) string {
 	return UserConfigPath("cert")

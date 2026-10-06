@@ -16,8 +16,6 @@ import (
 	utls "github.com/refraction-networking/utls"
 )
 
-
-
 // ErrIPv6Required 表明规则要求 IPv6，但当前网络无法提供可用的 IPv6 候选。
 // 这是一个配置与网络不匹配的错误（dns_mode = ipv6_only 或启用了 NAT64），
 // 而不是一次传输故障：它不会被静默降级为 IPv4，否则规则的地址族约束会被
@@ -287,6 +285,26 @@ func (p *ProxyServer) dialUpstream(cr *connectResult) error {
 	} else if cr.rule.UseCFPool {
 		// Pool is nil, empty, or stale — fall back to DNS, trigger async refresh if stale
 		p.maybeRefreshCFPoolAsync()
+	}
+
+	// A subscription node, when bound, carries the traffic itself. It is
+	// checked after the Cloudflare pool so an explicit CF pool still wins.
+	if conn, ok, err := p.dialThroughSubscription(cr.targetAddr); ok {
+		if err != nil {
+			return err
+		}
+		// The node tunnel is opaque to the layers above, so the TLS (and any
+		// ECH config) for the real target has to be negotiated on top of it
+		// here. Otherwise MITM would re-dial and bypass the node entirely.
+		secure, err := p.secureOverTunnel(conn, cr)
+		if err != nil {
+			return err
+		}
+		cr.conn = secure
+		cr.tunnelled = true
+		cr.dialAddr = cr.targetAddr
+		cr.dialCandidates = []string{cr.targetAddr}
+		return nil
 	}
 
 	dialCandidates := p.buildDialCandidates(context.Background(), cr.targetHost, cr.targetAddr, cr.rule, cr.effectiveMode)

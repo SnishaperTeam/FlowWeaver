@@ -343,7 +343,7 @@ func runWithTimeout(timeout time.Duration, name string, args ...string) ([]byte,
 
 func requireRoot() error {
 	if os.Geteuid() != 0 {
-		return errors.New("installing the CA into the system trust store requires root; run SniShaper with sudo")
+		return errors.New("installing the CA into the system trust store requires root; run FlowWeaver with sudo")
 	}
 	return nil
 }

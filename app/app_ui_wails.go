@@ -142,7 +142,7 @@ func (a *App) HibernateMainWindow() {
 		time.Sleep(200 * time.Millisecond)
 		runtime.GC()
 		debug.FreeOSMemory()
-		a.setTrayTooltip("SniShaper - 前端已休眠，点击托盘恢复")
+		a.setTrayTooltip("FlowWeaver - 前端已休眠，点击托盘恢复")
 	}()
 }
 
@@ -158,7 +158,7 @@ func (a *App) ensureMainWindow() *application.WebviewWindow {
 	log.Printf("[window] creating main window")
 	w := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
-		Title:            "SniShaper",
+		Title:            "FlowWeaver",
 		Width:            1024,
 		Height:           768,
 		URL:              "/",

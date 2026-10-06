@@ -19,6 +19,7 @@ import (
 	"snishaper/pkg/certmanager"
 	"snishaper/pkg/netiface"
 	"snishaper/pkg/singtun"
+	"snishaper/pkg/subscription"
 	"snishaper/proxy"
 )
 
@@ -37,6 +38,7 @@ type coreRuntime struct {
 	execDir           string
 	certPath          string
 	ruleManager       *proxy.RuleManager
+	subStore          *subscription.Store
 	proxyServer       *proxy.ProxyServer
 	nativeTUN         *singtun.Manager
 	certManager       *certmanager.CertManager
@@ -67,6 +69,14 @@ func newCoreRuntime() (*coreRuntime, error) {
 		return nil, err
 	}
 
+	// The core process serves the actual traffic, so it must honour the active
+	// subscription exactly like the GUI does.
+	subStore := subscription.NewStore(
+		common.ConfigSubscriptionPath(execDir),
+		nil,
+	)
+	ruleManager.SetSubscriptionStore(subStore)
+
 	port := ruleManager.GetListenPort()
 	if port == "" {
 		port = "8080"
@@ -77,11 +87,14 @@ func newCoreRuntime() (*coreRuntime, error) {
 		execDir:     execDir,
 		certPath:    common.ConfigCertDir(execDir),
 		ruleManager: ruleManager,
+		subStore:    subStore,
 		proxyServer: proxy.NewProxyServer("127.0.0.1:" + port),
 		logBuffer:   common.NewRingLogWriter(5000),
 	}
 	// Initialize nativeTUN with DoH resolver
 	r.nativeTUN = singtun.NewManager(r.proxyServer.GetDoHResolver(), r.appendLog)
+	// TUN UDP traffic must be able to use the bound subscription node.
+	r.nativeTUN.SetUDPRelay(r.proxyServer)
 
 	if err := r.start(); err != nil {
 		return nil, err
@@ -97,6 +110,7 @@ func (r *coreRuntime) start() error {
 		r.appendLog("[core] Failed to init cert manager: " + err.Error())
 	}
 	r.proxyServer.SetRuleManager(r.ruleManager)
+	r.proxyServer.SetSubscriptionDialer(r.subStore)
 	r.proxyServer.UpdateCloudflareIPPool(r.ruleManager.GetCloudflareConfig().PreferredIPs)
 	r.proxyServer.SetCertGenerator(r.certManager)
 	r.proxyServer.SetLogCallback(r.appendLog)
@@ -159,6 +173,7 @@ func (r *coreRuntime) reloadConfig() error {
 		return err
 	}
 	r.proxyServer.SetRuleManager(r.ruleManager)
+	r.proxyServer.SetSubscriptionDialer(r.subStore)
 	r.proxyServer.UpdateCloudflareIPPool(r.ruleManager.GetCloudflareConfig().PreferredIPs)
 	r.proxyServer.SetCertGenerator(r.certManager)
 	r.ruleManager.InitAutoRouter(r.proxyServer.GetDoHResolver())
@@ -308,7 +323,7 @@ func (r *coreRuntime) startTUN() (err error) {
 	}()
 
 	if !isProcessElevated() {
-		err = fmt.Errorf("TUN requires administrator privileges on Windows; please restart SniShaper as administrator")
+		err = fmt.Errorf("TUN requires administrator privileges on Windows; please restart FlowWeaver as administrator")
 		return err
 	}
 	if !r.proxyServer.IsRunning() {

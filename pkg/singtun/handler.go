@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,31 @@ import (
 // ponytail: JudgeFlow returns ActionAccept unconditionally; add flow-level
 // bypass logic if per-flow direct routing is ever needed.
 
+// UDPRelay resolves a UDP tunnel for a destination. It is implemented by the
+// proxy layer so this package does not depend on the subscription stack.
+//
+// The returned conn is a sing N.PacketConn rather than a net.PacketConn:
+// it carries the destination as M.Socksaddr and moves sing buf.Buffer values,
+// which keeps addresses typed and avoids a copy per datagram.
+type UDPRelay interface {
+	// OpenUDP returns a packet conn carrying traffic to destination, or
+	// ok=false when no relay applies and the caller should dial directly.
+	OpenUDP(ctx context.Context, destination M.Socksaddr) (conn N.PacketConn, ok bool, err error)
+}
+
+// debugLogEnabled 控制每连接级别的详细日志。默认关闭：这些日志在浏览器
+// 正常使用时每条 TCP 连接都会打一到三行，会把有用的错误信息完全淹没。
+// 通过环境变量 SNISHAPER_TUN_DEBUG=1 打开。
+var debugLogEnabled = os.Getenv("SNISHAPER_TUN_DEBUG") == "1"
+
+// tracef 仅在调试模式输出每连接的常规日志；错误路径仍走 logf。
+func (h *Handler) tracef(format string, args ...any) {
+	if !debugLogEnabled {
+		return
+	}
+	h.logf(fmt.Sprintf(format, args...))
+}
+
 // Handler 实现 sing-tun 的 Handler 接口
 // 负责将 TUN 流量转发到 SniShaper Proxy
 type Handler struct {
@@ -36,11 +62,25 @@ type Handler struct {
 	fakeIP      *FakeIPStore
 	logf        func(string)
 	ifaceConfig netiface.Config
+	udpRelay    UDPRelay
 	mu          sync.Mutex
 	live        map[net.Conn]struct{}
 	livePacket  map[N.PacketConn]struct{}
 	closed      bool
 	wg          sync.WaitGroup
+}
+
+// SetUDPRelay installs the resolver used to tunnel UDP through a proxy node.
+func (h *Handler) SetUDPRelay(relay UDPRelay) {
+	h.mu.Lock()
+	h.udpRelay = relay
+	h.mu.Unlock()
+}
+
+func (h *Handler) getUDPRelay() UDPRelay {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.udpRelay
 }
 
 // track 登记一个 TCP 连接。返回 false 表示 Handler 已关闭，调用方必须
@@ -212,12 +252,12 @@ func (h *Handler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.S
 	// 导致规则按域名匹配失效。此时从 TLS ClientHello 嗅探 SNI 重建域名。
 	if net.ParseIP(targetHost) != nil {
 		if sni, c := h.sniffTLSSNI(conn); sni != "" {
-			h.logf("[sing-tun] SNI sniffed: " + sni + " (was IP " + targetHost + ")")
+			h.tracef("[sing-tun] SNI sniffed: %s (was IP %s)", sni, targetHost)
 			targetHost = sni
 			conn = c
 		}
 	}
-	h.logf(fmt.Sprintf("[sing-tun] TCP %s -> %s (resolved: %s)", source.String(), destination.String(), targetHost))
+	h.tracef("[sing-tun] TCP %s -> %s (resolved: %s)", source.String(), destination.String(), targetHost)
 
 	// 连接到 ProxyServer
 	// loopback (127.0.0.0/8) 已被 Inet4RouteExcludeAddress 排除出 TUN，
@@ -239,7 +279,7 @@ func (h *Handler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.S
 	// 用 net.JoinHostPort 正确处理 IPv6 地址（自动加方括号）
 	target := net.JoinHostPort(targetHost, strconv.Itoa(int(destination.Port)))
 	connectReq := "CONNECT " + target + " HTTP/1.1\r\nHost: " + target + "\r\n\r\n"
-	h.logf(fmt.Sprintf("[sing-tun] CONNECT request: %q", connectReq))
+	h.tracef("[sing-tun] CONNECT request: %q", connectReq)
 	if _, err := upstream.Write([]byte(connectReq)); err != nil {
 		h.logf("[sing-tun] failed to send CONNECT: " + err.Error())
 		_ = conn.Close()
@@ -265,7 +305,7 @@ func (h *Handler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.S
 		return
 	}
 	statusLine = strings.TrimRight(statusLine, "\r\n")
-	h.logf(fmt.Sprintf("[sing-tun] CONNECT response: %q", statusLine))
+	h.tracef("[sing-tun] CONNECT response: %q", statusLine)
 
 	// 解析状态码（不能用子串匹配 "200"，状态行其他字段也可能包含 "200"）
 	if !isHTTPSuccess(statusLine) {
@@ -489,7 +529,144 @@ func (h *Handler) NewPacketConnectionEx(ctx context.Context, conn N.PacketConn, 
 		h.serveDNSOverPacketConn(ctx, conn, source, destination, onClose)
 		return
 	}
+
+	// A subscription node, when one is bound, carries the UDP itself.
+	if relay := h.getUDPRelay(); relay != nil {
+		packetConn, ok, err := relay.OpenUDP(ctx, destination)
+		if ok {
+			if err != nil {
+				h.logf("[sing-tun] udp relay failed: " + err.Error())
+				if onClose != nil {
+					onClose(err)
+				}
+				return
+			}
+			h.forwardUDPRelay(ctx, conn, packetConn, onClose)
+			return
+		}
+	}
+
 	h.forwardUDPDirect(ctx, conn, source, destination, onClose)
+}
+
+// splitSocksaddr renders a sing Socksaddr as host and port.
+func splitSocksaddr(addr M.Socksaddr) (string, int) {
+	if addr.IsDomain() {
+		return addr.Fqdn, int(addr.Port)
+	}
+	return addr.Addr.String(), int(addr.Port)
+}
+
+// forwardUDPRelay relays datagrams between the TUN client and a proxy tunnel.
+// Both ends are sing N.PacketConn, so buffers move by pointer and the
+// destination stays a typed M.Socksaddr on both sides.
+//
+// The two directions must run independently: a QUIC handshake makes the
+// server emit several datagrams in a row, so a request/response loop would
+// deadlock waiting for a client packet that never comes.
+func (h *Handler) forwardUDPRelay(ctx context.Context, conn N.PacketConn, remote N.PacketConn, onClose N.CloseHandlerFunc) {
+	if !h.trackPacketConn(conn) {
+		_ = remote.Close()
+		_ = conn.Close()
+		if onClose != nil {
+			onClose(nil)
+		}
+		return
+	}
+
+	go func() {
+		defer remote.Close()
+		defer h.untrackPacketConn(conn)
+		defer func() {
+			_ = conn.Close()
+			if onClose != nil {
+				onClose(nil)
+			}
+		}()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// Packets must carry header room: the SOCKS5 relay frames each
+		// datagram with WritePacket, which extends the header in place. A
+		// buffer from the plain pool has none and would panic. ReadWaitOptions
+		// sizes the headroom for both ends of the tunnel.
+		readOptions := N.NewReadWaitOptions(conn, remote)
+
+		stopped := make(chan struct{})
+		var stopOnce sync.Once
+		stop := func() { stopOnce.Do(func() { close(stopped) }) }
+
+		// Client -> tunnel.
+		go func() {
+			defer wg.Done()
+			defer stop()
+			for {
+				select {
+				case <-stopped:
+					return
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				_ = conn.SetReadDeadline(time.Now().Add(udpIdleTimeout))
+				packetBuf := readOptions.NewBufferSize(buf.UDPBufferSize)
+				destination, err := conn.ReadPacket(packetBuf)
+				if err != nil {
+					packetBuf.Release()
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue
+					}
+					return
+				}
+
+				// WritePacket takes ownership of the buffer, so it must not be
+				// released here.
+				_ = remote.SetWriteDeadline(time.Now().Add(udpIdleTimeout))
+				if err := remote.WritePacket(packetBuf, destination); err != nil {
+					h.logf("[sing-tun] failed to relay UDP: " + err.Error())
+					return
+				}
+			}
+		}()
+
+		// Tunnel -> client.
+		go func() {
+			defer wg.Done()
+			defer stop()
+			for {
+				select {
+				case <-stopped:
+					return
+				case <-ctx.Done():
+					return
+				default:
+				}
+
+				_ = remote.SetReadDeadline(time.Now().Add(udpIdleTimeout))
+				responsePacket := readOptions.NewBufferSize(buf.UDPBufferSize)
+				source, err := remote.ReadPacket(responsePacket)
+				if err != nil {
+					responsePacket.Release()
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue
+					}
+					return
+				}
+
+				// Ownership moves to WritePacket on success; on failure we
+				// still have to release it ourselves.
+				if err := conn.WritePacket(responsePacket, source); err != nil {
+					responsePacket.Release()
+					h.logf("[sing-tun] failed to write relayed UDP response: " + err.Error())
+					return
+				}
+			}
+		}()
+
+		wg.Wait()
+	}()
 }
 
 const dnsStreamIdleTimeout = 30 * time.Second
@@ -702,7 +879,7 @@ func (h *Handler) handleRawDNSPacket(payload []byte, source M.Socksaddr, destina
 		fakeIP, isNew = h.fakeIP.CreateIPv6(domain)
 	}
 	if isNew {
-		h.logf(fmt.Sprintf("[sing-tun] fake-ip: %s -> %s (type: %d)", domain, fakeIP, question.Qtype))
+		h.tracef("[sing-tun] fake-ip: %s -> %s (type: %d)", domain, fakeIP, question.Qtype)
 	}
 
 	resp := new(dns.Msg)
@@ -946,81 +1123,81 @@ func (h *Handler) forwardUDPDirect(ctx context.Context, conn N.PacketConn, sourc
 		var wg sync.WaitGroup
 		wg.Add(2)
 
-stopped := make(chan struct{})
-	var stopOnce sync.Once
-	stop := func() {
-		stopOnce.Do(func() { close(stopped) })
-	}
+		stopped := make(chan struct{})
+		var stopOnce sync.Once
+		stop := func() {
+			stopOnce.Do(func() { close(stopped) })
+		}
 
-	// 方向一：客户端 → 上游
-	go func() {
-		defer wg.Done()
-		defer stop()
-		for {
-			select {
-			case <-stopped:
-				return
-			case <-ctx.Done():
-				return
-			default:
-			}
+		// 方向一：客户端 → 上游
+		go func() {
+			defer wg.Done()
+			defer stop()
+			for {
+				select {
+				case <-stopped:
+					return
+				case <-ctx.Done():
+					return
+				default:
+				}
 
-			conn.SetReadDeadline(time.Now().Add(udpIdleTimeout))
-			packetBuf := buf.NewPacket()
-			_, err := conn.ReadPacket(packetBuf)
-			if err != nil {
+				conn.SetReadDeadline(time.Now().Add(udpIdleTimeout))
+				packetBuf := buf.NewPacket()
+				_, err := conn.ReadPacket(packetBuf)
+				if err != nil {
+					packetBuf.Release()
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue // 客户端暂时空闲，等待会话由 sing-tun NAT 回收
+					}
+					return
+				}
+
+				_, err = remoteConn.WriteTo(packetBuf.Bytes(), destUDPAddr)
 				packetBuf.Release()
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue // 客户端暂时空闲，等待会话由 sing-tun NAT 回收
+				if err != nil {
+					h.logf("[sing-tun] failed to forward UDP: " + err.Error())
+					return
 				}
-				return
 			}
+		}()
 
-			_, err = remoteConn.WriteTo(packetBuf.Bytes(), destUDPAddr)
-			packetBuf.Release()
-			if err != nil {
-				h.logf("[sing-tun] failed to forward UDP: " + err.Error())
-				return
-			}
-		}
-	}()
-
-	// 方向二：上游 → 客户端（独立持续读取，QUIC 多包响应不会丢失）
-	go func() {
-		defer wg.Done()
-		defer stop()
-		responseBuf := make([]byte, 65535)
-		for {
-			select {
-			case <-stopped:
-				return
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			remoteConn.SetReadDeadline(time.Now().Add(udpIdleTimeout))
-			n, _, err := remoteConn.ReadFrom(responseBuf)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					continue // 上游暂时无数据（QUIC 静默期），等待另一方向结束
+		// 方向二：上游 → 客户端（独立持续读取，QUIC 多包响应不会丢失）
+		go func() {
+			defer wg.Done()
+			defer stop()
+			responseBuf := make([]byte, 65535)
+			for {
+				select {
+				case <-stopped:
+					return
+				case <-ctx.Done():
+					return
+				default:
 				}
-				return
-			}
 
-			responsePacket := buf.NewPacket()
-			responsePacket.Write(responseBuf[:n])
-			// WritePacket 的 dest 是响应包的源地址（远端服务器），不是目标（应用）
-			// 所有权随 WritePacket 转移，由 gvisor 背压写端负责 Release
-			if err := conn.WritePacket(responsePacket, destination); err != nil {
-				h.logf("[sing-tun] failed to write UDP response: " + err.Error())
-				return
+				remoteConn.SetReadDeadline(time.Now().Add(udpIdleTimeout))
+				n, _, err := remoteConn.ReadFrom(responseBuf)
+				if err != nil {
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						continue // 上游暂时无数据（QUIC 静默期），等待另一方向结束
+					}
+					return
+				}
+
+				responsePacket := buf.NewPacket()
+				responsePacket.Write(responseBuf[:n])
+				// WritePacket 的 dest 是响应包的源地址（远端服务器），不是目标（应用）
+				// 所有权随 WritePacket 转移，由 gvisor 背压写端负责 Release
+				if err := conn.WritePacket(responsePacket, destination); err != nil {
+					h.logf("[sing-tun] failed to write UDP response: " + err.Error())
+					return
+				}
 			}
-		}
+		}()
+
+		wg.Wait()
 	}()
-
-	wg.Wait()
-}()
 }
 
 // proxyConn 双向复制数据，正确处理 TCP 半关闭

@@ -252,7 +252,7 @@ func (a *App) StopLogCapture() error {
 // (StartupCLI, app_headless.go) both delegate here.
 func (a *App) startupV3() {
 	a.setupFileLogger()
-	log.Printf("[startup] SniShaper startup hook entered")
+	log.Printf("[startup] FlowWeaver startup hook entered")
 	a.appendLog("[startup] in-memory log channel ready")
 
 	// Boot diagnostics: helps root-cause autostart failures (args missing,
@@ -340,7 +340,7 @@ func (a *App) autoEnableProxyAtStartup() {
 		if attempt >= len(delays) {
 			a.appendLog("[startup] AutoStart proxy enable failed after all retries; proxy left off")
 			if a.systemTray != nil {
-				a.setTrayTooltip("SniShaper: 开机自启代理启动失败，请手动开启代理")
+				a.setTrayTooltip("FlowWeaver: 开机自启代理启动失败，请手动开启代理")
 			}
 			return
 		}
@@ -387,7 +387,7 @@ func (a *App) startRouteEventsPoller() {
 }
 
 func (a *App) shutdown() {
-	a.appendLog("[shutdown] SniShaper shutdown hook entered")
+	a.appendLog("[shutdown] FlowWeaver shutdown hook entered")
 	a.cancel()
 	a.stopRulesWatcher()
 

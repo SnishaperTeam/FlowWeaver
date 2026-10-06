@@ -145,3 +145,15 @@ export const GetMigrationServer = () => appCall('GetMigrationServer');
 export const SetMigrationServer = (server: string) => appCall('SetMigrationServer', server);
 export const TestMigration = (server: string) => appCall('TestMigration', server);
 
+// Subscription API
+export const GetSubscriptions = () => appCall('GetSubscriptions');
+export const AddSubscription = (name: string, url: string) => appCall('AddSubscription', name, url);
+export const UpdateSubscription = (id: string) => appCall('UpdateSubscription', id);
+export const DeleteSubscription = (id: string) => appCall('DeleteSubscription', id);
+export const ActivateSubscription = (id: string) => appCall('ActivateSubscription', id);
+export const SelectSubscriptionNode = (subscriptionID: string, group: string, node: string) =>
+  appCall('SelectSubscriptionNode', subscriptionID, group, node);
+export const GetActiveSubscriptionID = () => appCall('GetActiveSubscriptionID');
+export const TestSubscriptionNode = (server: string, port: number) =>
+  appCall('TestSubscriptionNode', server, port);
+

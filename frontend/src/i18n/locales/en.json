@@ -38,10 +38,11 @@
     "dark_mode": "Dark mode",
     "nav_label": "Main navigation",
     "dark_mode_aria": "Switch to dark mode",
-    "light_mode_aria": "Switch to light mode"
+    "light_mode_aria": "Switch to light mode",
+    "subscriptions": "Subscriptions"
   },
   "welcome": {
-    "title": "Welcome to SniShaper",
+    "title": "Welcome to FlowWeaver",
     "subtitle": "Please select your preferred language to get started",
     "select_language": "Select Language",
     "start": "Get Started"
@@ -295,7 +296,8 @@
     "update_latest_detail": "Remote updated {date} · {hash}",
     "update_applied_detail": "Local {local} → remote {remote} · remote updated {date}",
     "update_applied": "Rules updated: {added} added, {changed} changed",
-    "update_failed": "Rules update failed"
+    "update_failed": "Rules update failed",
+    "subscription_source": "Rules are provided by subscription {name}. Built-in rules are hidden."
   },
   "logs": {
     "title": "System Logs",
@@ -445,7 +447,7 @@
       "label": "Color Scheme",
       "desc": "Choose the interface color scheme (both support dark/light mode).",
       "default": "Default MUI",
-      "sniShaper": "Classic SniShaper Blue",
+      "sniShaper": "Classic Blue",
       "forest": "Forest Green",
       "sunset": "Sunset Orange",
       "ocean": "Ocean Teal",
@@ -496,7 +498,7 @@
       },
       "adapter_name": {
         "title": "Virtual adapter name",
-        "desc": "Name of the TUN virtual adapter. Leave empty to use the default name SniShaper."
+        "desc": "Name of the TUN virtual adapter. Leave empty to use the default name."
       },
       "route_exclude": {
         "title": "Excluded networks",
@@ -567,13 +569,13 @@
     }
   },
   "about": {
-    "title": "About SniShaper",
+    "title": "About FlowWeaver",
     "version": "Version",
     "creator": "Creator",
     "contributors": "Contributors",
     "maintainers": "Maintainers",
     "website": "Official Website",
-    "description": "SniShaper is a powerful networking tool for handling SNI and ECH configurations, providing secure network connections.",
+    "description": "FlowWeaver is a full-featured local proxy client and gateway with Clash subscription support, multi-protocol nodes and WireGuard tunnels.",
     "features": "Core Features",
     "feature_ech": "ECH Encryption",
     "feature_ech_desc": "Support Encrypted Client Hello to protect your SNI privacy",
@@ -604,7 +606,7 @@
     "proxy_error": "Proxy configuration error. Please check your system proxy settings.",
     "rights_reserved": "All rights reserved.",
     "made_with": "Made with",
-    "by_community": "by the SniShaper community",
+    "by_community": "by the FlowWeaver community",
     "latest_beta": "Latest Beta",
     "actions_build": "Actions build artifact",
     "no_release_found": "No release in this channel",
@@ -652,5 +654,41 @@
   },
   "toast": {
     "close_notification": "Dismiss notification"
+  },
+  "subscriptions": {
+    "title": "Subscriptions",
+    "add": "Add Subscription",
+    "add_hint": "Paste a Clash-format subscription URL, then pick a node below.",
+    "name": "Name",
+    "name_placeholder": "Optional",
+    "url": "Subscription URL",
+    "import": "Import",
+    "importing": "Importing...",
+    "url_required": "Subscription URL is required",
+    "add_success": "Subscription imported",
+    "update_success": "Subscription updated",
+    "update_aria": "Update subscription {name}",
+    "delete_aria": "Delete subscription {name}",
+    "delete_confirm": "Delete subscription {name}?",
+    "my_subscriptions": "My Subscriptions",
+    "no_subscriptions": "No subscriptions yet",
+    "builtin_badge": "Built-in rules",
+    "node_count": "{count} nodes",
+    "remaining": "Data Remaining",
+    "used": "Used {used}",
+    "expires": "Expires {date}",
+    "activate": "Activate",
+    "activate_success": "Activated {name}",
+    "node_selection": "Node Selection",
+    "search_placeholder": "Search nodes",
+    "current_selection": "Selected: {name}",
+    "not_selected": "Not selected",
+    "node_selected": "Node {name} selected",
+    "no_nodes": "This subscription has no usable nodes",
+    "check": "Test",
+    "testing": "Testing",
+    "default_rules_active": "Built-in rules are active",
+    "default_rules_desc": "The built-in rules offer no node selection and stay unchanged.",
+    "unsupported": "unsupported"
   }
 }

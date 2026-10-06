@@ -50,8 +50,8 @@ func setAutoStartEnabled(enabled bool, command string) error {
 	}
 	content := "[Desktop Entry]\n" +
 		"Type=Application\n" +
-		"Name=SniShaper\n" +
-		"Comment=SniShaper system proxy\n" +
+		"Name=FlowWeaver\n" +
+		"Comment=FlowWeaver system proxy\n" +
 		"Exec=" + command + "\n" +
 		"Terminal=false\n" +
 		"NoDisplay=true\n" +
@@ -79,7 +79,7 @@ func SetNamedAutoStartEntry(name string, enabled bool, command string) error {
 	content := "[Desktop Entry]\n" +
 		"Type=Application\n" +
 		"Name=" + name + "\n" +
-		"Comment=SniShaper command line service\n" +
+		"Comment=FlowWeaver command line service\n" +
 		"Exec=" + command + "\n" +
 		"Terminal=false\n" +
 		"NoDisplay=true\n" +

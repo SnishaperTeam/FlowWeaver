@@ -62,7 +62,7 @@ func (a *App) installTarGz(localPath string) error {
 	}
 
 	// 2. Stop the running app (self) so files are not busy.
-	a.appendLog("[update] Stopping running SniShaper instance...")
+	a.appendLog("[update] Stopping running FlowWeaver instance...")
 	if err := stopSelf(); err != nil {
 		os.RemoveAll(base)
 		return fmt.Errorf("stop running instance: %w", err)
@@ -76,10 +76,10 @@ func (a *App) installTarGz(localPath string) error {
 	}
 
 	// 4. Relaunch the new binary detached from this process.
-	a.appendLog("[update] Relaunching SniShaper...")
+	a.appendLog("[update] Relaunching FlowWeaver...")
 	if err := relaunchDetached(execPath); err != nil {
 		os.RemoveAll(base)
-		return fmt.Errorf("relaunch SniShaper: %w", err)
+		return fmt.Errorf("relaunch FlowWeaver: %w", err)
 	}
 
 	// 5. Clean up staging.

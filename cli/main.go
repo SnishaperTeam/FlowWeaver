@@ -37,6 +37,12 @@ func main() {
 		return
 	}
 
+	// The panel accepts Chinese verbs; the shell resolves the same aliases so
+	// a command copied from the TUI works verbatim here.
+	if alias, ok := commandAliases[args[0]]; ok {
+		args[0] = alias
+	}
+
 	// Process lifecycle verbs stay in main: they either take over the process
 	// or hand over to a long running loop, so the interactive panel must not be
 	// able to reach them through the shared dispatcher.
@@ -102,6 +108,8 @@ func dispatchCommand(args []string, out cmdOut) int {
 		return opDisableSysProxy(out)
 	case "tun":
 		return opTunCommand(args[1:], out)
+	case "sub", "subscription":
+		return opSubscriptionCommand(args[1:], out)
 	case "config":
 		return opConfig(args[1:], out)
 	case "ca":

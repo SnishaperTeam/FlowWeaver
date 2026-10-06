@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"snishaper/pkg/dohresolver"
+	"snishaper/pkg/subscription"
 )
 
 type RuleManager struct {
@@ -30,23 +31,25 @@ type RuleManager struct {
 	autoEnableSysProxyOnAutoStart bool
 	autoUpdateRules               bool
 
-	listenPort                    string
-	echProfiles                   []ECHProfile
-	nat64Profiles                 []NAT64Profile
-	autoRouter                    *AutoRouter
-	autoRoutingConfig             AutoRoutingConfig
-	mu                            sync.RWMutex
-	routeEventCallback            func(domain, mode string)
-	onConfigSaved                 func()
-	language                      string
-	theme                         string
-	migrationEnabled              bool
-	migrationServer               string
-	updateChannel                 string
-	downloadSource                string
-	customDownloadSource          string
-	rulesHashMu                   sync.Mutex
-	rulesHash                     string
+	listenPort           string
+	echProfiles          []ECHProfile
+	nat64Profiles        []NAT64Profile
+	autoRouter           *AutoRouter
+	autoRoutingConfig    AutoRoutingConfig
+	mu                   sync.RWMutex
+	routeEventCallback   func(domain, mode string)
+	onConfigSaved        func()
+	language             string
+	theme                string
+	migrationEnabled     bool
+	migrationServer      string
+	updateChannel        string
+	downloadSource       string
+	customDownloadSource string
+	rulesHashMu          sync.Mutex
+	rulesHash            string
+	subscriptions        *subscription.Store
+	builtinSiteGroups    []SiteGroup
 }
 
 func (r *RuleManager) SetRouteEventCallback(cb func(domain, mode string)) {
@@ -272,6 +275,7 @@ func (rm *RuleManager) LoadConfig() error {
 	}
 
 	rm.buildRules()
+	rm.snapshotBuiltinSiteGroups()
 	if migrated {
 		if err := rm.saveRulesConfig(); err != nil {
 			log.Printf("[Config] migrate website field failed: %v", err)
@@ -499,8 +503,6 @@ func (rm *RuleManager) GetSiteGroups() []SiteGroup {
 	return rm.siteGroups
 }
 
-
-
 func (rm *RuleManager) GetListenPort() string {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
@@ -513,7 +515,6 @@ func (rm *RuleManager) SetListenPort(port string) {
 	rm.mu.Unlock()
 }
 
-
 func (rm *RuleManager) SaveConfig() error {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
@@ -522,8 +523,6 @@ func (rm *RuleManager) SaveConfig() error {
 	}
 	return rm.saveRulesConfig()
 }
-
-
 
 func (rm *RuleManager) GetCloudflareConfig() CloudflareConfig {
 	rm.mu.RLock()
@@ -859,24 +858,24 @@ func (rm *RuleManager) saveSettingsConfig() error {
 	settings := SettingsConfig{
 		ListenPort: listenPort,
 
-		CloseToTray:                &closeToTray,
-		HibernateOnClose:           &hibernateOnClose,
-		AutoStart:                  &autoStart,
-		ShowMainWindowOnAutoStart:  &showMainOnAutoStart,
-		AutoEnableProxyOnAutoStart: &autoEnableProxyOnAutoStart,
+		CloseToTray:                   &closeToTray,
+		HibernateOnClose:              &hibernateOnClose,
+		AutoStart:                     &autoStart,
+		ShowMainWindowOnAutoStart:     &showMainOnAutoStart,
+		AutoEnableProxyOnAutoStart:    &autoEnableProxyOnAutoStart,
 		AutoEnableSysProxyOnAutoStart: &autoEnableSysProxyOnAutoStart,
 		AutoUpdateRules:               &autoUpdateRules,
-		CloudflareConfig:           cloudflareConfig,
-		AutoRouting:                rm.autoRoutingConfig,
-		TUN:                        tunConfig,
-		Language:                   rm.language,
-		Theme:                      rm.theme,
+		CloudflareConfig:              cloudflareConfig,
+		AutoRouting:                   rm.autoRoutingConfig,
+		TUN:                           tunConfig,
+		Language:                      rm.language,
+		Theme:                         rm.theme,
 
-		MigrationEnabled:           &migrationEnabled,
-		MigrationServer:            rm.migrationServer,
-		UpdateChannel:              rm.updateChannel,
-		DownloadSource:             rm.downloadSource,
-		CustomDownloadSource:       rm.customDownloadSource,
+		MigrationEnabled:     &migrationEnabled,
+		MigrationServer:      rm.migrationServer,
+		UpdateChannel:        rm.updateChannel,
+		DownloadSource:       rm.downloadSource,
+		CustomDownloadSource: rm.customDownloadSource,
 	}
 
 	data, err := json.MarshalIndent(settings, "", "  ")
@@ -894,6 +893,15 @@ func (rm *RuleManager) saveSettingsConfig() error {
 }
 
 func (rm *RuleManager) saveRulesConfig() error {
+	// A non-default subscription replaces siteGroups with subscription-derived
+	// rules. Persisting them would overwrite the shipped rules file and lose
+	// the user's built-in configuration, so writes are blocked until the
+	// default subscription is active again.
+	if active := rm.activeSubscriptionID(); active != "" && active != subscription.DefaultSubscriptionID {
+		log.Printf("[Subscription] skipping rules persist while subscription %q is active", active)
+		return nil
+	}
+
 	config := RulesConfig{
 		SiteGroups:    rm.siteGroups,
 		Upstreams:     rm.upstreams,
@@ -1185,5 +1193,3 @@ func (rm *RuleManager) SetCustomDownloadSource(prefix string) error {
 	rm.mu.Unlock()
 	return rm.saveSettingsConfig()
 }
-
-

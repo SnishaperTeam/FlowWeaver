@@ -142,8 +142,6 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 		return nil
 	}
 
-
-
 	// QUIC 规则命中的 TCP 连接：本地终结 TLS 后经 H3/QUIC 上游 replay
 	// （handleQUICMITM），用 QUIC 绕过 TCP 层 SNI 阻断。
 	if cr.effectiveMode == "quic" {
@@ -179,7 +177,11 @@ func (p *ProxyServer) handleSocks5Connect(ctx context.Context, writer io.Writer,
 			writer: writer,
 		}
 		_ = hijackConn.SetDeadline(time.Time{})
-		p.handleMITM(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		if cr.tunnelled {
+			p.handleMITMWithConn(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr, cr.conn)
+		} else {
+			p.handleMITM(hijackConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		}
 	case "tls-rf":
 		hijackConn := &socks5HijackConn{
 			Conn:   clientConn,

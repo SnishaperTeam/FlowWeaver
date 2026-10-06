@@ -61,7 +61,7 @@ func (a *App) installSevenZ(localPath string) error {
 	}
 	// 用 cmd /c start 启动：让 pwsh 拥有独立的新控制台窗口
 	// （直接 exec 启动会继承 GUI 父进程的无效 std 句柄，新窗口收不到输出）
-	launcher := exec.Command("cmd", "/c", "start", "SniShaper 更新", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script)
+	launcher := exec.Command("cmd", "/c", "start", "FlowWeaver 更新", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script)
 	launcher.SysProcAttr = &syscall.SysProcAttr{
 		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
 	}
@@ -86,10 +86,10 @@ func buildUpdateScript(archive, stage, execDir, base string) string {
 	execDir = psQuoteSingle(execDir)
 	base = psQuoteSingle(base)
 	return `$ErrorActionPreference = 'Continue'
-$Host.UI.RawUI.WindowTitle = 'SniShaper 便携版更新'
+$Host.UI.RawUI.WindowTitle = 'FlowWeaver 便携版更新'
 Write-Host ''
 Write-Host '========================================' -ForegroundColor Cyan
-Write-Host '          SniShaper 便携版更新' -ForegroundColor Cyan
+Write-Host '          FlowWeaver 便携版更新' -ForegroundColor Cyan
 Write-Host '========================================' -ForegroundColor Cyan
 Write-Host ''
 
@@ -146,11 +146,11 @@ Remove-Item -Path $base -Recurse -Force -ErrorAction SilentlyContinue
 
 if (Get-Process -Name 'snishaper' -ErrorAction SilentlyContinue) {
     Write-Host ''
-    Write-Host '更新完成，SniShaper 已重新启动。' -ForegroundColor Green
+    Write-Host '更新完成，FlowWeaver 已重新启动。' -ForegroundColor Green
     Start-Sleep -Seconds 2
 } else {
     Write-Host ''
-    Write-Host '[警告] 未检测到程序进程，请手动打开 SniShaper。' -ForegroundColor Yellow
+    Write-Host '[警告] 未检测到程序进程，请手动打开 FlowWeaver。' -ForegroundColor Yellow
     Read-Host '按回车键退出'
     exit 3
 }

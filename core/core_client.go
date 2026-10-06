@@ -236,7 +236,7 @@ func (c *CoreClient) StartTUN() error {
 		return fmt.Errorf("core not reachable: %w", err)
 	}
 	if !info.Elevated {
-		return fmt.Errorf("TUN 需要管理员权限，请以管理员身份重新运行 SniShaper")
+		return fmt.Errorf("TUN 需要管理员权限，请以管理员身份重新运行 FlowWeaver")
 	}
 
 	var empty EmptyArgs

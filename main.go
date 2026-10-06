@@ -81,7 +81,7 @@ func main() {
 
 	opts := application.Options{
 		Name:        "snishaper",
-		Description: "SniShaper - Cloudflare IP Shaper",
+		Description: "FlowWeaver - Cloudflare IP Shaper",
 		Assets: application.AssetOptions{
 			Handler: application.BundledAssetFileServer(assets),
 		},
@@ -147,7 +147,7 @@ func main() {
 	log.Printf("[startup] ShouldStartHidden=%v Hidden=%v", hidden, hidden)
 	mainWindow := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
-		Title:            "SniShaper",
+		Title:            "FlowWeaver",
 		Width:            1024,
 		Height:           768,
 		URL:              "/",

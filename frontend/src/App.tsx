@@ -24,6 +24,7 @@ const fadeIn = keyframes`from { opacity: 0; transform: translateY(8px); } to { o
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Proxies = lazy(() => import('./pages/Proxies'));
+const Subscription = lazy(() => import('./pages/Subscription'));
 const Rules = lazy(() => import('./pages/Rules'));
 const Routing = lazy(() => import('./pages/Routing'));
 const Logs = lazy(() => import('./pages/Logs'));
@@ -49,6 +50,7 @@ interface SettingsCache {
   language: string;
   themeMode: string;
   ipv6Available: boolean;
+  rulesVersion: number;
 }
 
 const defaultCache: SettingsCache = {
@@ -63,7 +65,8 @@ const defaultCache: SettingsCache = {
   installedCerts: [], ipStats: [],
   language: '',
   themeMode: 'dark',
-  ipv6Available: true
+  ipv6Available: true,
+  rulesVersion: 0
 };
 
 const SettingsCtx = createContext<{ cache: SettingsCache; updateCache: (patch: Partial<SettingsCache>) => void }>({
@@ -85,6 +88,7 @@ const App: React.FC = () => {
   useEffect(() => {
     void import('./pages/Dashboard');
     void import('./pages/Proxies');
+    void import('./pages/Subscription');
     void import('./pages/Rules');
     void import('./pages/Routing');
     void import('./pages/DNS');
@@ -207,6 +211,7 @@ const AppRoutes: React.FC<{ settingsCache: SettingsCache, updateSettingsCache: a
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/proxies" element={<Proxies />} />
+            <Route path="/subscriptions" element={<Subscription />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/routing" element={<Routing />} />
             <Route path="/dns" element={<DNS />} />
@@ -294,7 +299,7 @@ const AppContent: React.FC<{ settingsCache: SettingsCache, updateSettingsCache: 
               <Box
                 component="img"
                 src={logoUrl}
-                alt="SniShaper"
+                alt="FlowWeaver"
                 sx={{ width: 22, height: 22, objectFit: 'contain', flexShrink: 0 }}
               />
               <Typography
@@ -308,7 +313,7 @@ const AppContent: React.FC<{ settingsCache: SettingsCache, updateSettingsCache: 
                   userSelect: 'none',
                 }}
               >
-                SniShaper
+                FlowWeaver
               </Typography>
               <Box sx={{ flexGrow: 1 }} />
               <WindowControls />

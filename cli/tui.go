@@ -227,7 +227,7 @@ func (t *tuiApp) refreshStatus() {
 
 func (t *tuiApp) statusText() string {
 	if t.app == nil {
-		return "SniShaper"
+		return "FlowWeaver"
 	}
 	proxyState := "关"
 	if t.app.IsProxyRunning() {
@@ -243,7 +243,7 @@ func (t *tuiApp) statusText() string {
 	}
 	port := t.app.GetListenPort()
 	mode := t.app.GetProxyMode()
-	return fmt.Sprintf(" SniShaper   代理[%s] 系统代理[%s] TUN[%s]   HTTP:%d  模式:%s",
+	return fmt.Sprintf(" FlowWeaver   代理[%s] 系统代理[%s] TUN[%s]   HTTP:%d  模式:%s",
 		statusColor(proxyState == "开"), statusColor(sysProxyState == "开"), statusColor(tunState == "开"), port, mode)
 }
 
@@ -260,6 +260,7 @@ var commandAliases = map[string]string{
 	"状态": "status", "证书": "ca", "配置": "config", "版本": "version",
 	"规则": "sites", "站点": "sites", "上游": "upstreams", "节点": "dns",
 	"路由": "route", "统计": "stats", "更新": "update", "日志": "logs",
+	"订阅": "sub", "订阅列表": "sub",
 }
 
 func (t *tuiApp) openCatalog() {

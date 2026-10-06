@@ -53,8 +53,6 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 	// 这样直连也用 DoH 解析器选 IP（而非系统 DNS，避免 TUN 模式下系统 DNS 进 TUN 死循环）
 	// 且 IPv4 优先，避免 IPv6 成为唯一候选
 
-
-
 	// QUIC 规则命中的 TCP 连接：浏览器对 QUIC 站点回退到 TCP 时，本地终结 TLS
 	// 后经 H3/QUIC 上游 replay（NewQUICRoundTripper），用 QUIC 绕过 TCP 层 SNI 阻断。
 	if cr.effectiveMode == "quic" {
@@ -140,7 +138,11 @@ func (p *ProxyServer) handleConnect(w http.ResponseWriter, req *http.Request, ru
 
 	switch cr.effectiveMode {
 	case "mitm":
-		p.handleMITM(clientConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		if cr.tunnelled {
+			p.handleMITMWithConn(clientConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr, cr.conn)
+		} else {
+			p.handleMITM(clientConn, cr.targetHost, cr.rule, cr.dialCandidates, cr.dialAddr)
+		}
 	case "tls-rf":
 		p.handleTLSFragment(clientConn, cr.conn, cr.targetHost, cr.rule)
 	default:

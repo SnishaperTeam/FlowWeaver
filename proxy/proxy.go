@@ -50,6 +50,9 @@ type connectResult struct {
 	dialCandidates []string
 	dialAddr       string
 	conn           net.Conn
+	// tunnelled marks conn as already established through a subscription
+	// node, so MITM must reuse it instead of re-dialling the target.
+	tunnelled bool
 }
 
 type DNSNode struct {
@@ -268,7 +271,7 @@ type ProxyServer struct {
 	socks5ChanLn *chanListener
 
 	cfRefreshCallback func()
-	OnStop func(error)
+	OnStop            func(error)
 
 	// migrationCache holds persistent session tickets for migration mode,
 	// keyed by host name. Tickets are reused across requests until they fail.
@@ -277,6 +280,8 @@ type ProxyServer struct {
 
 	tunMode     bool
 	ifaceConfig netiface.Config
+
+	subscriptionDialer *subscriptionDialer
 }
 
 type dohProxyAdapter struct {

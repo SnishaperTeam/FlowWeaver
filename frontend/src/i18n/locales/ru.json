@@ -38,10 +38,11 @@
     "dark_mode": "Тёмный режим",
     "nav_label": "Основная навигация",
     "dark_mode_aria": "Переключить тёмный режим",
-    "light_mode_aria": "Переключить светлый режим"
+    "light_mode_aria": "Переключить светлый режим",
+    "subscriptions": "Подписки"
   },
   "welcome": {
-    "title": "Добро пожаловать в SniShaper",
+    "title": "Добро пожаловать в FlowWeaver",
     "subtitle": "Пожалуйста, выберите язык для начала работы",
     "select_language": "Выберите язык",
     "start": "Начать"
@@ -295,7 +296,8 @@
     "update_latest_detail": "Удалённый обновлён {date} · {hash}",
     "update_applied_detail": "Локальный {local} → удалённый {remote} · удалённый обновлён {date}",
     "update_applied": "Правила обновлены: добавлено {added}, изменено {changed}",
-    "update_failed": "Не удалось обновить правила"
+    "update_failed": "Не удалось обновить правила",
+    "subscription_source": "Правила предоставлены подпиской {name}. Встроенные правила скрыты."
   },
   "logs": {
     "title": "Системные логи",
@@ -445,7 +447,7 @@
       "label": "Цветовая схема",
       "desc": "Выберите цветовую схему интерфейса (обе поддерживают тёмный/светлый режим).",
       "default": "MUI по умолчанию",
-      "sniShaper": "Классический синий SniShaper",
+      "sniShaper": "Классический синий",
       "forest": "Лесная зелень",
       "sunset": "Закатный оранжевый",
       "ocean": "Океанический бирюзовый",
@@ -496,7 +498,7 @@
       },
       "adapter_name": {
         "title": "Имя виртуального адаптера",
-        "desc": "Имя виртуального адаптера TUN. Оставьте пустым для имени по умолчанию SniShaper."
+        "desc": "Имя виртуального адаптера TUN. Оставьте пустым, чтобы использовать имя по умолчанию."
       },
       "route_exclude": {
         "title": "Исключённые сети",
@@ -567,13 +569,13 @@
     }
   },
   "about": {
-    "title": "О SniShaper",
+    "title": "О FlowWeaver",
     "version": "Версия",
     "creator": "Автор",
     "contributors": "Участники",
     "maintainers": "Мейнтейнеры",
     "website": "Официальный сайт",
-    "description": "SniShaper — мощный сетевой инструмент для обработки SNI и ECH, обеспечивающий безопасные сетевые подключения.",
+    "description": "FlowWeaver — полнофункциональный локальный прокси-клиент и шлюз с поддержкой подписок Clash, мультипротокольных узлов и туннелей WireGuard.",
     "features": "Основные возможности",
     "feature_ech": "Шифрование ECH",
     "feature_ech_desc": "Поддержка Encrypted Client Hello для защиты приватности SNI",
@@ -604,7 +606,7 @@
     "proxy_error": "Ошибка прокси. Проверьте системные настройки.",
     "rights_reserved": "Все права защищены.",
     "made_with": "Сделано с ❤️",
-    "by_community": "сообществом SniShaper",
+    "by_community": "сообществом FlowWeaver",
     "latest_beta": "Последняя бета",
     "actions_build": "Сборка Actions",
     "no_release_found": "Нет релизов в этом канале",
@@ -652,5 +654,41 @@
   },
   "toast": {
     "close_notification": "Закрыть уведомление"
+  },
+  "subscriptions": {
+    "title": "Подписки",
+    "add": "Добавить подписку",
+    "add_hint": "Вставьте ссылку подписки в формате Clash, затем выберите узел ниже.",
+    "name": "Название",
+    "name_placeholder": "Необязательно",
+    "url": "Ссылка подписки",
+    "import": "Импорт",
+    "importing": "Импорт...",
+    "url_required": "Требуется ссылка подписки",
+    "add_success": "Подписка импортирована",
+    "update_success": "Подписка обновлена",
+    "update_aria": "Обновить подписку {name}",
+    "delete_aria": "Удалить подписку {name}",
+    "delete_confirm": "Удалить подписку {name}?",
+    "my_subscriptions": "Мои подписки",
+    "no_subscriptions": "Подписок пока нет",
+    "builtin_badge": "Встроенные правила",
+    "node_count": "Узлов: {count}",
+    "remaining": "Осталось трафика",
+    "used": "Использовано {used}",
+    "expires": "Истекает {date}",
+    "activate": "Активировать",
+    "activate_success": "Подписка {name} активирована",
+    "node_selection": "Выбор узла",
+    "search_placeholder": "Поиск узлов",
+    "current_selection": "Выбрано: {name}",
+    "not_selected": "Не выбрано",
+    "node_selected": "Узел {name} выбран",
+    "no_nodes": "В этой подписке нет доступных узлов",
+    "check": "Проверка",
+    "testing": "Проверка...",
+    "default_rules_active": "Активны встроенные правила",
+    "default_rules_desc": "Встроенные правила не предлагают выбор узла и остаются без изменений.",
+    "unsupported": "нет поддержки"
   }
 }

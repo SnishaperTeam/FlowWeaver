@@ -209,9 +209,9 @@ const About: React.FC = () => {
           <Box sx={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
             <Box sx={{ position: 'relative', mb: 3 }}>
               <Box sx={{ position: 'absolute', inset: 0, borderRadius: '50%', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.2), filter: 'blur(24px)' }} />
-              <Box component="img" src={logoUrl} alt="SniShaper logo" sx={{ position: 'relative', width: 112, height: 112, objectFit: 'contain', filter: 'drop-shadow(0 10px 30px rgba(33, 150, 243, 0.3))' }} />
+              <Box component="img" src={logoUrl} alt="FlowWeaver logo" sx={{ position: 'relative', width: 112, height: 112, objectFit: 'contain', filter: 'drop-shadow(0 10px 30px rgba(33, 150, 243, 0.3))' }} />
             </Box>
-            <Typography variant="h1" sx={{ fontSize: '2.25rem', fontWeight: 900, color: 'text.primary', mb: 0.5, letterSpacing: '-0.025em' }}>SniShaper</Typography>
+            <Typography variant="h1" sx={{ fontSize: '2.25rem', fontWeight: 900, color: 'text.primary', mb: 0.5, letterSpacing: '-0.025em' }}>FlowWeaver</Typography>
             <Typography sx={{ fontSize: '1.125rem', fontWeight: 500, color: 'text.secondary', mb: 2 }}>{t('about.title')}</Typography>
             <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1.5, px: 2.5, py: 1.25, borderRadius: '999px', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1), border: 1, borderColor: (theme) => alpha(theme.palette.primary.main, 0.2) }}>
               <Shield size={16} aria-hidden />
@@ -349,7 +349,7 @@ const About: React.FC = () => {
         </Box>
 
         <Box component="footer" sx={{ textAlign: 'center', pb: 2 }}>
-          <Typography variant="caption" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary' }}>© 2025-2026 SniShaper. {t('about.rights_reserved')}</Typography>
+          <Typography variant="caption" sx={{ display: 'block', fontSize: '0.75rem', color: 'text.secondary' }}>© 2025-2026 FlowWeaver. {t('about.rights_reserved')}</Typography>
           <Typography variant="caption" sx={{ display: 'block', fontSize: '0.6875rem', color: 'text.secondary', opacity: 0.6, mt: 1 }}>{t('about.made_with')} ❤️ {t('about.by_community')}</Typography>
         </Box>
       </Box>

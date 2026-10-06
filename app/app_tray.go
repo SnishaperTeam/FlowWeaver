@@ -71,7 +71,7 @@ func (a *App) buildSystemTray() {
 	trayItem := app.SystemTray.New()
 	trayItem.SetIcon(icon)
 	trayItem.SetDarkModeIcon(icon)
-	trayItem.SetTooltip("SniShaper")
+	trayItem.SetTooltip("FlowWeaver")
 	trayItem.OnClick(func() {
 		a.RevealMainWindow()
 	})

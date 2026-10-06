@@ -38,10 +38,11 @@
     "dark_mode": "深色模式",
     "nav_label": "主导航",
     "dark_mode_aria": "切换到深色模式",
-    "light_mode_aria": "切换到浅色模式"
+    "light_mode_aria": "切换到浅色模式",
+    "subscriptions": "订阅"
   },
   "welcome": {
-    "title": "欢迎使用 SniShaper",
+    "title": "欢迎使用 FlowWeaver",
     "subtitle": "请选择您的首选语言以开始使用",
     "select_language": "选择语言",
     "start": "开始使用"
@@ -295,7 +296,8 @@
     "update_latest_detail": "远端更新于 {date} · {hash}",
     "update_applied_detail": "本地 {local} → 远程 {remote} · 远端更新于 {date}",
     "update_applied": "规则已更新：新增 {added} 条，修改 {changed} 条",
-    "update_failed": "规则更新失败"
+    "update_failed": "规则更新失败",
+    "subscription_source": "当前规则来自订阅 {name}，内置规则已隐藏。"
   },
   "logs": {
     "title": "系统日志",
@@ -445,7 +447,7 @@
       "label": "配色方案",
       "desc": "选择界面配色方案（均支持深色/浅色模式）。",
       "default": "默认 MUI",
-      "sniShaper": "经典 SniShaper 蓝",
+      "sniShaper": "经典蓝",
       "forest": "森林绿",
       "sunset": "暖阳橙",
       "ocean": "海洋青",
@@ -496,7 +498,7 @@
       },
       "adapter_name": {
         "title": "虚拟网卡名称",
-        "desc": "TUN 虚拟网卡的名称，留空使用默认名 SniShaper。"
+        "desc": "TUN 虚拟网卡的名称，留空使用默认名。"
       },
       "route_exclude": {
         "title": "排除网段",
@@ -567,13 +569,13 @@
     }
   },
   "about": {
-    "title": "关于 SniShaper",
+    "title": "关于 FlowWeaver",
     "version": "版本",
     "creator": "制作者",
     "contributors": "贡献者",
     "maintainers": "维护者",
     "website": "官方网站",
-    "description": "SniShaper 是一款强大的网络工具，用于处理 SNI 和 ECH 配置，提供安全的网络连接。",
+    "description": "FlowWeaver 是一款功能全面的本地代理客户端与网关，支持 Clash 订阅、全协议节点与 WireGuard 隧道。",
     "features": "核心特性",
     "feature_ech": "ECH 加密支持",
     "feature_ech_desc": "支持 Encrypted Client Hello，保护您的 SNI 隐私",
@@ -603,7 +605,7 @@
     "dns_error": "DNS 解析失败，请检查您的 DNS 设置。",
     "proxy_error": "代理配置错误，请检查系统代理设置。",
     "rights_reserved": "保留所有权利。",
-    "made_with": "由 SniShaper 社区",
+    "made_with": "由 FlowWeaver 社区",
     "by_community": "倾心打造",
     "latest_beta": "最新beta版",
     "actions_build": "Actions 构建产物",
@@ -652,5 +654,41 @@
   },
   "toast": {
     "close_notification": "关闭提示"
+  },
+  "subscriptions": {
+    "title": "订阅",
+    "add": "添加订阅",
+    "add_hint": "粘贴 Clash 格式的订阅地址，导入后可在下方选择节点。",
+    "name": "名称",
+    "name_placeholder": "可留空",
+    "url": "订阅地址",
+    "import": "导入",
+    "importing": "导入中...",
+    "url_required": "请输入订阅地址",
+    "add_success": "订阅导入成功",
+    "update_success": "订阅已更新",
+    "update_aria": "更新订阅 {name}",
+    "delete_aria": "删除订阅 {name}",
+    "delete_confirm": "确定删除订阅 {name} 吗？",
+    "my_subscriptions": "我的订阅",
+    "no_subscriptions": "暂无订阅",
+    "builtin_badge": "内置规则",
+    "node_count": "{count} 个节点",
+    "remaining": "剩余流量",
+    "used": "已用 {used}",
+    "expires": "到期 {date}",
+    "activate": "启用此订阅",
+    "activate_success": "已启用订阅 {name}",
+    "node_selection": "节点选择",
+    "search_placeholder": "搜索节点",
+    "current_selection": "当前选择：{name}",
+    "not_selected": "未选择",
+    "node_selected": "已选择节点 {name}",
+    "no_nodes": "该订阅暂无可用节点",
+    "check": "检测",
+    "testing": "测速中",
+    "default_rules_active": "当前使用内置规则",
+    "default_rules_desc": "内置规则不提供节点选择，规则配置保持不变。",
+    "unsupported": "不支持"
   }
 }

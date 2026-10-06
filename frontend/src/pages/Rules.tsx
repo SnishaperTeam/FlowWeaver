@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Plus, Search, Filter, Edit, ExternalLink, Delete, Activity, Bolt, RefreshCcw
+  Plus, Search, Filter, Edit, ExternalLink, Delete, Activity, Bolt, RefreshCcw, Shield
 } from '../lib/icons';
 import {
-  GetSiteGroups, DeleteSiteGroup, ExportConfig, EventsOn, UpdateRules
+  GetSiteGroups, DeleteSiteGroup, ExportConfig, EventsOn, UpdateRules, GetSubscriptions
 } from '../api/bindings';
 import {
   Box, Typography, Button, IconButton, TextField, InputAdornment,
@@ -107,9 +107,15 @@ const Rules: React.FC = () => {
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [pendingDeleteGroup, setPendingDeleteGroup] = useState<any>(null);
   const [updatingRules, setUpdatingRules] = useState(false);
+  const [activeSubName, setActiveSubName] = useState('');
 
   const loadData = async () => {
-    try { setGroups((await GetSiteGroups()) || []); }
+    try {
+      setGroups((await GetSiteGroups()) || []);
+      const subs = (await GetSubscriptions()) as any[];
+      const active = (subs || []).find((s) => s.active && !s.builtin);
+      setActiveSubName(active ? String(active.name || '') : '');
+    }
     catch (e) { console.error("Failed to load site groups:", e); }
   };
 
@@ -230,6 +236,15 @@ const Rules: React.FC = () => {
           </Button>
         </Box>
       </Box>
+
+      {activeSubName && (
+        <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, mb: 1.5, borderRadius: 2, bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08), border: 1, borderColor: (theme) => alpha(theme.palette.primary.main, 0.25) }}>
+          <Shield size={14} aria-hidden style={{ color: 'var(--mui-palette-primary-main)', flexShrink: 0 }} />
+          <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary' }}>
+            {t('rules.subscription_source', { name: activeSubName })}
+          </Typography>
+        </Box>
+      )}
 
       <Box sx={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 1.5, pb: 2 }}>
         <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75, p: 0.5, border: 1, borderColor: 'divider', borderRadius: 2, width: 'fit-content', flexWrap: 'wrap', minWidth: 0 }} role="tablist" aria-label={t('rules.filter_mode_aria')}>

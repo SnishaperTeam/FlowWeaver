@@ -13,6 +13,7 @@ import {
   Antenna,
   Info,
   Bolt,
+  Share,
 } from '../lib/icons';
 import { useTranslation } from '../i18n/I18nContext';
 
@@ -21,6 +22,7 @@ const DRAWER_WIDTH = 240;
 const getNavItems = (t: any) => [
   { path: '/dashboard', label: t('sidebar.dashboard'), icon: Activity },
   { path: '/proxies', label: t('sidebar.proxies'), icon: Globe },
+  { path: '/subscriptions', label: t('sidebar.subscriptions'), icon: Share },
   { path: '/rules', label: t('sidebar.rules'), icon: Shield },
   { path: '/routing', label: t('sidebar.routing'), icon: RefreshCcw },
   { path: '/dns', label: t('sidebar.dns'), icon: Antenna },
@@ -38,7 +40,7 @@ const SidebarContent: React.FC = () => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <img src={logoUrl} alt="SniShaper" width={32} height={32} style={{ objectFit: 'contain' }} />
+        <img src={logoUrl} alt="FlowWeaver" width={32} height={32} style={{ objectFit: 'contain' }} />
         <Typography
           variant="subtitle1"
           noWrap
@@ -46,7 +48,7 @@ const SidebarContent: React.FC = () => {
             fontWeight: 700,
             letterSpacing: "0.12em"
           }}>
-          SniShaper
+          FlowWeaver
         </Typography>
       </Box>
 

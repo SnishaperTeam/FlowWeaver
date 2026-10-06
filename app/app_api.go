@@ -26,6 +26,7 @@ import (
 	"snishaper/pkg/cfpool"
 	"snishaper/pkg/dohresolver"
 	"snishaper/pkg/netiface"
+	"snishaper/pkg/subscription"
 	"snishaper/proxy"
 )
 
@@ -40,6 +41,14 @@ func NewApp() *App {
 		log.Printf("[warn] Failed to load config at init: %v", err)
 	}
 
+	// Attach the subscription store only after the shipped rules are loaded:
+	// the manager snapshots them so the built-in entry can restore them.
+	subStore := subscription.NewStore(
+		common.ConfigSubscriptionPath(execDir),
+		func(msg string) { log.Print(msg) },
+	)
+	ruleManager.SetSubscriptionStore(subStore)
+
 	port := ruleManager.GetListenPort()
 	if port == "" {
 		port = "8080"
@@ -48,6 +57,7 @@ func NewApp() *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	proxyServer := proxy.NewProxyServer("127.0.0.1:" + port)
 	proxyServer.SetRuleManager(ruleManager)
+	proxyServer.SetSubscriptionDialer(subStore)
 	a := &App{
 		ctx:                ctx,
 		cancel:             cancel,

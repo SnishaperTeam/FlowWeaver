@@ -17,6 +17,12 @@ func ConfigRulesPath(execDir string) string {
 	return ResolveRuntimeFile(execDir, filepath.Join("rules", "config.json"))
 }
 
+// ConfigSubscriptionPath resolves the subscription store path. It sits next to
+// the rules file so a portable install keeps both in the same directory.
+func ConfigSubscriptionPath(execDir string) string {
+	return ResolveRuntimeFile(execDir, filepath.Join("rules", "subscriptions.json"))
+}
+
 // ConfigCertDir resolves the certificate directory for the current platform.
 func ConfigCertDir(execDir string) string {
 	stable := UserConfigPath("cert")

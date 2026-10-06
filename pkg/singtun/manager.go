@@ -27,6 +27,7 @@ type Manager struct {
 	releasing      atomic.Bool
 	resolver       *dohresolver.FailoverResolver
 	logf           func(string)
+	udpRelay       UDPRelay
 	ifaceConfig    netiface.Config
 	networkMonitor tun.NetworkUpdateMonitor
 	ifaceMonitor   tun.DefaultInterfaceMonitor
@@ -36,6 +37,18 @@ func NewManager(resolver *dohresolver.FailoverResolver, logf func(string)) *Mana
 	return &Manager{
 		resolver: resolver,
 		logf:     logf,
+	}
+}
+
+// SetUDPRelay installs the UDP tunnel resolver used for TUN traffic. It is
+// applied to the handler on creation and to any live handler immediately, so
+// callers can wire it before or after Start.
+func (m *Manager) SetUDPRelay(relay UDPRelay) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.udpRelay = relay
+	if m.handler != nil {
+		m.handler.SetUDPRelay(relay)
 	}
 }
 
@@ -70,8 +83,8 @@ func (m *Manager) Start(cfg proxy.TUNConfig, proxyAddr string) (err error) {
 	}
 
 	m.options = tun.Options{
-		Name:        "SniShaper",
-		MTU:         uint32(mtu),
+		Name: "SniShaper",
+		MTU:  uint32(mtu),
 		Inet4Address: []netip.Prefix{
 			netip.MustParsePrefix(fakeIPv4Prefix),
 		},
@@ -159,6 +172,9 @@ func (m *Manager) Start(cfg proxy.TUNConfig, proxyAddr string) (err error) {
 	m.logf("[sing-tun] start: tun.New completed in " + time.Since(tunStart).String())
 
 	m.handler = NewHandler(proxyAddr, m.resolver, m.logf)
+	if m.udpRelay != nil {
+		m.handler.SetUDPRelay(m.udpRelay)
+	}
 	m.handler.SetInterfaceConfig(cfg.InterfaceConfig())
 
 	stackStart := time.Now()
