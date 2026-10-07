@@ -12,9 +12,9 @@ import (
 	"github.com/sagernet/sing-tun"
 	"github.com/sagernet/sing/common/control"
 
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/netiface"
-	"snishaper/proxy"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/netiface"
+	"flowweaver/proxy"
 )
 
 type Manager struct {
@@ -83,7 +83,7 @@ func (m *Manager) Start(cfg proxy.TUNConfig, proxyAddr string) (err error) {
 	}
 
 	m.options = tun.Options{
-		Name: "SniShaper",
+		Name: "FlowWeaver",
 		MTU:  uint32(mtu),
 		Inet4Address: []netip.Prefix{
 			netip.MustParsePrefix(fakeIPv4Prefix),

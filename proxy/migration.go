@@ -130,7 +130,7 @@ func generateMigrationDummyCert() (tls.Certificate, error) {
 	}
 	template := x509.Certificate{
 		SerialNumber: serial,
-		Subject:      pkix.Name{Organization: []string{"SniShaper Migration"}},
+		Subject:      pkix.Name{Organization: []string{"FlowWeaver Migration"}},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(24 * time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,

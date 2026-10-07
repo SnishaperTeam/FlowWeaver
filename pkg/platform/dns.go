@@ -36,7 +36,7 @@ func SetSystemDNS(nameservers []string) (restore func() error, err error) {
 	}
 
 	var b strings.Builder
-	b.WriteString("# managed by SniShaper (TUN DNS)\n")
+	b.WriteString("# managed by FlowWeaver (TUN DNS)\n")
 	for _, ns := range nameservers {
 		b.WriteString("nameserver ")
 		b.WriteString(ns)

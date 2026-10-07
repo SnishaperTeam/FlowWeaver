@@ -192,7 +192,7 @@ Expected output shape (English only):
 "@
 
 $userPrompt = @"
-Write the official English release notes for this version of SniShaper (a Windows local proxy tool), based on the grouped change list below.
+Write the official English release notes for this version of FlowWeaver (a Windows local proxy tool), based on the grouped change list below.
 
 The list is pre-grouped by conventional-commit type: feat = New Features, fix = Bug Fixes, perf = Performance Improvements, refactor = Refactoring, docs = Documentation, build = Build & CI, test = Tests, other = Other. Automated dependency bumps and merge commits have already been removed, so every entry is a real change. The number in each heading is the total count for that type; only a representative subset is listed.
 
@@ -348,14 +348,14 @@ if (-not $llmSummary) {
 $sb = New-Object System.Text.StringBuilder
 
 if ($PrereleaseSuffix) {
-    [void]$sb.AppendLine("# SniShaper $displayVersion ($channelLabel)")
+    [void]$sb.AppendLine("# FlowWeaver $displayVersion ($channelLabel)")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("> Prerelease version: This release may be unstable; some features may be removed or reworked. It does not represent the final version.")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
     [void]$sb.AppendLine("")
 } else {
-    [void]$sb.AppendLine("# SniShaper $displayVersion")
+    [void]$sb.AppendLine("# FlowWeaver $displayVersion")
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("---")
     [void]$sb.AppendLine("")

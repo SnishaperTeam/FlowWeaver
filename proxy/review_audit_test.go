@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 func TestReviewDomainKeywordMatch(t *testing.T) {

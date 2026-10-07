@@ -29,8 +29,8 @@ func (a *App) installUpdateAsset(localPath string) error {
 
 // installTarGz replaces the running application with the contents of a
 // .tar.gz release bundle. The archive may contain a top-level directory
-// (e.g. SniShaper/); the binary and payload are located inside and copied
-// over the install directory. User data under ~/.config/snishaper is never
+// (e.g. FlowWeaver/); the binary and payload are located inside and copied
+// over the install directory. User data under ~/.config/flowweaver is never
 // touched. The current process is stopped and the new binary relaunched.
 func (a *App) installTarGz(localPath string) error {
 	execPath, err := os.Executable()
@@ -42,7 +42,7 @@ func (a *App) installTarGz(localPath string) error {
 		return fmt.Errorf("dir_not_writable")
 	}
 
-	base := filepath.Join(os.TempDir(), "snishaper-update")
+	base := filepath.Join(os.TempDir(), "flowweaver-update")
 	stage := filepath.Join(base, "stage")
 	os.RemoveAll(base)
 	if err := os.MkdirAll(stage, 0755); err != nil {

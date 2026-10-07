@@ -1,4 +1,4 @@
-module snishaper/tools/gentests
+module flowweaver/tools/gentests
 
 go 1.25
 

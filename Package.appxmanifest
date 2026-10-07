@@ -8,16 +8,16 @@
   xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  xmlns:rel="http://schemas.snishaper.dev/release"
+  xmlns:rel="http://schemas.flowweaver.dev/release"
   IgnorableNamespaces="uap uap2 uap3 uap10 desktop desktop6 rescap rel">
 
   <Identity
-    Name="dongle.Snishaper"
+    Name="dongle.FlowWeaver"
     Publisher="CN=9C81AFF4-83F7-49D8-BC9D-3FB4B60AE536"
     Version="1.29.0.0" />
 
   <Properties>
-    <DisplayName>Snishaper</DisplayName>
+    <DisplayName>FlowWeaver</DisplayName>
     <PublisherDisplayName>dongle</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -31,12 +31,12 @@
   </Resources>
 
   <Applications>
-    <Application Id="dongle.Snishaper"
-      Executable="snishaper.exe"
+    <Application Id="dongle.FlowWeaver"
+      Executable="flowweaver.exe"
       EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Snishaper"
-        Description="SniShaper desktop application"
+        DisplayName="FlowWeaver"
+        Description="FlowWeaver desktop application"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\MedTile.png"
         Square44x44Logo="Assets\AppList.png">

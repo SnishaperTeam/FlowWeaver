@@ -447,7 +447,7 @@
       "label": "Color Scheme",
       "desc": "Choose the interface color scheme (both support dark/light mode).",
       "default": "Default MUI",
-      "sniShaper": "Classic Blue",
+      "flowWeaver": "Classic Blue",
       "forest": "Forest Green",
       "sunset": "Sunset Orange",
       "ocean": "Ocean Teal",

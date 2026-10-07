@@ -69,10 +69,10 @@ func instanceSocketPath(uniqueID string) string {
 	id := sanitizeInstanceID(uniqueID)
 	if dir := os.Getenv("XDG_RUNTIME_DIR"); dir != "" {
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			return filepath.Join(dir, "snishaper-"+id+".sock")
+			return filepath.Join(dir, "flowweaver-"+id+".sock")
 		}
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("snishaper-%d-%s.sock", os.Getuid(), id))
+	return filepath.Join(os.TempDir(), fmt.Sprintf("flowweaver-%d-%s.sock", os.Getuid(), id))
 }
 
 func sanitizeInstanceID(uniqueID string) string {

@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"snishaper/app"
-	"snishaper/core"
-	"snishaper/pkg/sysproxy"
+	"flowweaver/app"
+	"flowweaver/core"
+	"flowweaver/pkg/sysproxy"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -35,7 +35,7 @@ func main() {
 
 	if !devSession && !app.HasLaunchArg("--elevated") && !core.IsProcessElevated() {
 		// Already running? Don't trigger a UAC prompt for a second instance.
-		if app.IsSingleInstanceRunning("com.snishaper.desktop") {
+		if app.IsSingleInstanceRunning("com.flowweaver.desktop") {
 			log.Printf("[main] Instance already running, skipping auto-elevate")
 		} else if err := core.ElevateSelf(); err != nil {
 			log.Printf("[main] Auto-elevate failed: %v, continuing without admin", err)
@@ -44,17 +44,17 @@ func main() {
 		}
 	}
 
-	app.RecoverBrokenSingleInstance("com.snishaper.desktop")
+	app.RecoverBrokenSingleInstance("com.flowweaver.desktop")
 
 	if devSession {
-		if app.IsSingleInstanceRunning("com.snishaper.desktop") {
+		if app.IsSingleInstanceRunning("com.flowweaver.desktop") {
 			log.Printf("[main] dev session: another instance is running, proxy ports may conflict until it is closed")
 		}
-	} else if app.IsSingleInstanceRunning("com.snishaper.desktop") {
+	} else if app.IsSingleInstanceRunning("com.flowweaver.desktop") {
 		// Wake the running instance; retry to handle UIPI race where first instance hasn't yet allowed cross-integrity.
 		woke := false
 		for i := 0; i < 3; i++ {
-			if err := app.WakeSingleInstance("com.snishaper.desktop"); err == nil {
+			if err := app.WakeSingleInstance("com.flowweaver.desktop"); err == nil {
 				log.Printf("[main] Woke running instance, exiting second instance")
 				woke = true
 				break
@@ -65,7 +65,7 @@ func main() {
 			return
 		}
 		log.Printf("[main] Failed to wake running instance, killing stale instance and taking over")
-		app.KillSingleInstance("com.snishaper.desktop")
+		app.KillSingleInstance("com.flowweaver.desktop")
 	}
 
 	a := app.NewApp()
@@ -80,7 +80,7 @@ func main() {
 	}()
 
 	opts := application.Options{
-		Name:        "snishaper",
+		Name:        "flowweaver",
 		Description: "FlowWeaver - Cloudflare IP Shaper",
 		Assets: application.AssetOptions{
 			Handler: application.BundledAssetFileServer(assets),
@@ -106,7 +106,7 @@ func main() {
 		// `wails3 dev` run task (and its Vite server) the moment an instance is
 		// already running, so dev sessions opt out of the handshake entirely.
 		opts.SingleInstance = &application.SingleInstanceOptions{
-			UniqueID: "com.snishaper.desktop",
+			UniqueID: "com.flowweaver.desktop",
 			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
 				log.Printf("[single-instance] OnSecondInstanceLaunch args=%v", data.Args)
 				for _, arg := range data.Args {
@@ -127,12 +127,12 @@ func main() {
 	a.SetWailsApp(wailsApp)
 
 	if !devSession {
-		a.StartInstanceListener("com.snishaper.desktop")
+		a.StartInstanceListener("com.flowweaver.desktop")
 
-		app.AllowSingleInstanceCrossIntegrity("com.snishaper.desktop")
+		app.AllowSingleInstanceCrossIntegrity("com.flowweaver.desktop")
 		go func() {
 			for i := 0; i < 10; i++ {
-				app.AllowSingleInstanceCrossIntegrity("com.snishaper.desktop")
+				app.AllowSingleInstanceCrossIntegrity("com.flowweaver.desktop")
 				time.Sleep(100 * time.Millisecond)
 			}
 		}()

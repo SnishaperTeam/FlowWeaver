@@ -37,7 +37,7 @@ cert/*.crt
 cert/*.key
 cert/*.pem
 *.log
-snishaper-logs-*.txt
+flowweaver-logs-*.txt
 frontend/build_errors.txt
 /config.json
 diag_report_*.json
@@ -73,7 +73,7 @@ Thumbs.db
 echproxy/
 doc/
 shaper-next/
-snishaper.zip
+flowweaver.zip
 Apppackage/
 blindtls-vercel/
 llm/
@@ -91,7 +91,7 @@ WinDivert*.sys
 third_party/windivert-cache/
 wiki_repo/
 
-snishaper
+flowweaver
 build_output/
 
 sniproxy-tls-rf/

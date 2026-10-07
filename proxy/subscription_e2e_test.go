@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // TestFullChainThroughSubscriptionNode wires the real proxy server to a
@@ -108,7 +108,7 @@ func TestFullChainThroughSubscriptionNode(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "EOF") && !strings.Contains(err.Error(), "closed") {
 		t.Fatalf("read response: %v", err)
 	}
-	if !strings.Contains(string(body), "SNISHAPER-SUB-TEST") {
+	if !strings.Contains(string(body), "FLOWWEAVER-SUB-TEST") {
 		t.Errorf("unexpected response body: %q", string(body))
 	}
 
@@ -139,7 +139,7 @@ func startHTTPOrigin(t *testing.T) *countingSocks5 {
 				c.SetDeadline(time.Now().Add(10 * time.Second))
 				buf := make([]byte, 4096)
 				_, _ = c.Read(buf)
-				body := "SNISHAPER-SUB-TEST"
+				body := "FLOWWEAVER-SUB-TEST"
 				header := "HTTP/1.1 200 OK" + "\r\n" +
 					fmt.Sprintf("Content-Length: %d", len(body)) + "\r\n" +
 					"Connection: close" + "\r\n\r\n"

@@ -58,7 +58,7 @@ func GetProcessNameByPID(pid int) (string, error) {
 
 	// Image Name                     PID Session Name        Session#    Mem Usage
 	// ========================= ======== ================ =========== ============
-	// snishaper.exe                13012 Console                    1     12,345 K
+	// flowweaver.exe                13012 Console                    1     12,345 K
 	line := strings.TrimSpace(string(out))
 	if strings.Contains(line, "No tasks are running") {
 		return "", fmt.Errorf("process not found")

@@ -1,6 +1,6 @@
 import { Call, Events } from '@wailsio/runtime';
 
-const appCall = (name: string, ...args: any[]) => Call.ByName(`snishaper/app.App.${name}`, ...args);
+const appCall = (name: string, ...args: any[]) => Call.ByName(`flowweaver/app.App.${name}`, ...args);
 
 export const EventsOn = (eventName: string, callback: (data: any) => void) =>
   Events.On(eventName, (event) => callback(event.data));

@@ -38,15 +38,15 @@
 )
 
 # ===========================================================================
-# build_windows.ps1 — SniShaper multi-platform / multi-architecture builder
+# build_windows.ps1 — FlowWeaver multi-platform / multi-architecture builder
 #                     (Windows host). Bash twin: build.sh
 #
 # OUTPUT LAYOUT
-#   build\bin\cli\Windows\{x64,x86,arm64}\snishaper.exe
-#   build\bin\cli\Linux\{x64,arm64}\snishaper
-#   build\bin\cli\Darwin\{x64,arm64}\snishaper
-#   build\bin\gui\Windows\{x64,x86,arm64}\snishaper.exe
-#   build\bin\gui\Linux\{x64,arm64}\SniShaper
+#   build\bin\cli\Windows\{x64,x86,arm64}\flowweaver.exe
+#   build\bin\cli\Linux\{x64,arm64}\flowweaver
+#   build\bin\cli\Darwin\{x64,arm64}\flowweaver
+#   build\bin\gui\Windows\{x64,x86,arm64}\flowweaver.exe
+#   build\bin\gui\Linux\{x64,arm64}\FlowWeaver
 #
 #   Each target directory also receives the runtime seed folders config\ and
 #   rules\. The GUI is never built for Darwin; x86 exists on Windows only.
@@ -217,9 +217,9 @@ try {
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectRoot
 
-# Kill any running snishaper instances before build
-Get-Process -Name "snishaper" -ErrorAction SilentlyContinue | ForEach-Object {
-    Write-Host "[build] Killing snishaper process (PID: $($_.Id))..." -ForegroundColor Yellow
+# Kill any running flowweaver instances before build
+Get-Process -Name "flowweaver" -ErrorAction SilentlyContinue | ForEach-Object {
+    Write-Host "[build] Killing flowweaver process (PID: $($_.Id))..." -ForegroundColor Yellow
     $_ | Stop-Process -Force
 }
 Start-Sleep -Milliseconds 500
@@ -234,7 +234,7 @@ $messages = @{
     "LangOpt3" = "Russian"
     "LangPrompt" = "Enter your choice (1=English, 2=Chinese, 3=Russian)"
 
-    "EN_MenuTitle" = "       SniShaper Build Menu"
+    "EN_MenuTitle" = "       FlowWeaver Build Menu"
     "EN_DepPrompt" = "Install frontend npm dependencies? [y/N]"
     "EN_MsixPrompt" = "Build the MSIX package? [y/N]"
     "EN_SignPrompt" = "Sign the MSIX package? [Y/n]"
@@ -282,7 +282,7 @@ $messages = @{
     "EN_SummaryFailed" = "failed : {0}"
     "EN_SummarySkipped" = "skipped: {0}"
 
-    "CN_MenuTitle" = "       SniShaper 构建菜单"
+    "CN_MenuTitle" = "       FlowWeaver 构建菜单"
     "CN_DepPrompt" = "是否安装前端 npm 依赖？[y/N]"
     "CN_MsixPrompt" = "是否需要构建 MSIX 安装包？[y/N]"
     "CN_SignPrompt" = "是否对 MSIX 进行签名？[Y/n]"
@@ -330,7 +330,7 @@ $messages = @{
     "CN_SummaryFailed" = "失败：{0}"
     "CN_SummarySkipped" = "跳过：{0}"
 
-    "RU_MenuTitle" = "       Меню сборки SniShaper"
+    "RU_MenuTitle" = "       Меню сборки FlowWeaver"
     "RU_DepPrompt" = "Установить npm зависимости фронтенда? [y/N]"
     "RU_MsixPrompt" = "Создать MSIX-пакет? [y/N]"
     "RU_SignPrompt" = "Подписать MSIX-пакет? [Y/n]"
@@ -645,9 +645,9 @@ function Resolve-Targets {
                     else { $note = "go cross build, CGO_ENABLED=0, no cross toolchain" }
                 }
 
-                $outFile = "snishaper"
-                if ($p -eq "windows") { $outFile = "snishaper.exe" }
-                elseif ($t -eq "gui" -and $p -eq "linux") { $outFile = "SniShaper" }
+                $outFile = "flowweaver"
+                if ($p -eq "windows") { $outFile = "flowweaver.exe" }
+                elseif ($t -eq "gui" -and $p -eq "linux") { $outFile = "FlowWeaver" }
 
                 $targets += [pscustomobject]@{
                     Type     = $t
@@ -768,7 +768,7 @@ if ($manifestContent -match '<rel:ReleaseChannel>([^<]+)</rel:ReleaseChannel>') 
 
 Write-Host ""
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host " SniShaper build" -ForegroundColor Cyan
+Write-Host " FlowWeaver build" -ForegroundColor Cyan
 Write-Host (" " + (msg -Key "HostInfo" -Arg0 $HostOs -Arg1 $HostArch -Arg2 $CI -Arg3 $Cross)) -ForegroundColor Cyan
 Write-Host (" Version : $buildVersion (channel: $relChannel)") -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
@@ -884,7 +884,7 @@ function Sync-VersionResource {
         [System.IO.File]::WriteAllText($WinResPath, ($winres | ConvertTo-Json -Depth 10), $utf8NoBom)
         Write-Host (msg -Key "BackSyncVer" -Arg0 $mainVer) -ForegroundColor Green
 
-        $WinResTmp = Join-Path $env:TEMP ("snishaper-winres-" + $PID + "-" + $TargetGoArch)
+        $WinResTmp = Join-Path $env:TEMP ("flowweaver-winres-" + $PID + "-" + $TargetGoArch)
         New-Item -ItemType Directory -Path $WinResTmp -Force | Out-Null
         if (Get-Command go-winres -ErrorAction SilentlyContinue) {
             go-winres make --in $WinResPath --arch $TargetGoArch --out (Join-Path $WinResTmp "rsrc")
@@ -973,8 +973,8 @@ function Invoke-BuildTarget {
 
     $ldflags = "-s -w"
     if ($Target.Type -eq "gui" -and $Target.GoOs -eq "windows") { $ldflags += " -H windowsgui" }
-    if ($buildVersion) { $ldflags += " -X snishaper/app.buildVersion=$buildVersion" }
-    if ($relChannel) { $ldflags += " -X snishaper/app.buildChannel=$relChannel" }
+    if ($buildVersion) { $ldflags += " -X flowweaver/app.buildVersion=$buildVersion" }
+    if ($relChannel) { $ldflags += " -X flowweaver/app.buildChannel=$relChannel" }
 
     $rc = 0
     try {
@@ -1164,10 +1164,10 @@ if ($BuildMsix) {
     foreach ($a in $ArchOrder) {
         if ($selectedArchs -notcontains $a) { continue }
         $dir = Join-Path $guiWinRoot $a
-        if (Test-Path (Join-Path $dir "snishaper.exe")) { $pkgDirs += $dir }
+        if (Test-Path (Join-Path $dir "flowweaver.exe")) { $pkgDirs += $dir }
     }
     if ($pkgDirs.Count -eq 0) {
-        Write-Host "[ERROR] No Windows GUI output found (expected build\bin\gui\Windows\<arch>\snishaper.exe)" -ForegroundColor Red
+        Write-Host "[ERROR] No Windows GUI output found (expected build\bin\gui\Windows\<arch>\flowweaver.exe)" -ForegroundColor Red
         if (-not $Silent) { Read-Host (msg -Key "Exit") }
         exit 1
     }

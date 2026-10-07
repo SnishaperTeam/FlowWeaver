@@ -10,12 +10,12 @@ import (
 	"strconv"
 	"strings"
 
-	"snishaper/app"
-	"snishaper/common"
-	"snishaper/core"
-	"snishaper/pkg/certmanager"
-	"snishaper/pkg/sysproxy"
-	"snishaper/proxy"
+	"flowweaver/app"
+	"flowweaver/common"
+	"flowweaver/core"
+	"flowweaver/pkg/certmanager"
+	"flowweaver/pkg/sysproxy"
+	"flowweaver/proxy"
 )
 
 type cmdOut func(string)
@@ -23,7 +23,7 @@ type cmdOut func(string)
 func opRequireService(out cmdOut) *core.CoreClient {
 	c := core.NewCoreClient()
 	if !c.Ping() {
-		out("服务未在运行，请先启动: snishaper start")
+		out("服务未在运行，请先启动: flowweaver start")
 		return nil
 	}
 	return c

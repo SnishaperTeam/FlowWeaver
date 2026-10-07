@@ -155,7 +155,7 @@ jobs:
             'rc'      { 'Release Candidate' }
             default   { $channel }
           }
-          $releaseName = "SniShaper v$displayVersion"
+          $releaseName = "FlowWeaver v$displayVersion"
           if ($channelLabel) { $releaseName += " ($channelLabel)" }
 
           Write-Host "::notice::ManifestVersion=$pkgVersion Version=$version Tag=$tag Release=$releaseName Channel=$relChannel Identity=$identityVersion"
@@ -372,7 +372,7 @@ jobs:
           $payloadDirs = @()
           foreach ($arch in @('x64', 'x86', 'arm64')) {
             $dir = Join-Path $outDir $arch
-            if (Test-Path (Join-Path $dir 'snishaper.exe')) { $payloadDirs += $dir }
+            if (Test-Path (Join-Path $dir 'flowweaver.exe')) { $payloadDirs += $dir }
           }
           if ($payloadDirs.Count -eq 0) {
             Write-Host "::error::no Windows GUI payload under $outDir"
@@ -397,7 +397,7 @@ jobs:
           Write-Host "::notice::Unsigned package ready: $unsignedPath"
 
       - name: Create 7z archive
-        run: 7z a -mx=9 snishaper-windows-amd64.7z .\build\bin\gui\Windows\x64\*
+        run: 7z a -mx=9 flowweaver-windows-amd64.7z .\build\bin\gui\Windows\x64\*
 
       - name: Create cert install batch
         shell: pwsh
@@ -433,7 +433,7 @@ jobs:
           # Bundle the signed MSIX + cert + install.bat + signing password
           # into one 7z named after the MSIX base name, so users get a
           # single self-contained archive
-          # (e.g. dongle.Snishaper_1.29.0.0_x64_x86_arm64.7z).
+          # (e.g. dongle.FlowWeaver_1.29.0.0_x64_x86_arm64.7z).
           $ErrorActionPreference = 'Stop'
           $root = $env:GITHUB_WORKSPACE
           $msix = Get-ChildItem -Path (Join-Path $root 'build/bin/gui/Windows') -File |
@@ -505,8 +505,8 @@ jobs:
           Copy-Item $msix.FullName $assetsDir\ -ErrorAction Stop
           $unsigned = Get-ChildItem -Path $pkgDir -File -Filter 'unsigned_*' | Select-Object -First 1
           if ($unsigned) { Copy-Item $unsigned.FullName $assetsDir\ -ErrorAction Stop }
-          Copy-Item (Join-Path $root 'snishaper-windows-amd64.7z') $assetsDir\ -ErrorAction Stop
-          $bundle = Get-ChildItem -Path $root -Filter '*_x64*.7z' -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'snishaper-windows-amd64.7z' } | Select-Object -First 1
+          Copy-Item (Join-Path $root 'flowweaver-windows-amd64.7z') $assetsDir\ -ErrorAction Stop
+          $bundle = Get-ChildItem -Path $root -Filter '*_x64*.7z' -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'flowweaver-windows-amd64.7z' } | Select-Object -First 1
           if ($bundle) { Copy-Item $bundle.FullName $assetsDir\ -ErrorAction Stop }
           $setupExe = Get-ChildItem -Path (Join-Path $root 'installer') -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
           if ($setupExe) { Copy-Item $setupExe.FullName $assetsDir\ -ErrorAction Stop }
@@ -578,12 +578,12 @@ jobs:
           echo "::group::build.sh --ci --platform linux --arch x64 --type gui --install-deps"
           ./build.sh --ci --platform linux --arch x64 --type gui --install-deps
           echo "::endgroup::"
-          test -f build/bin/gui/Linux/x64/SniShaper && echo "::notice::build/bin/gui/Linux/x64/SniShaper ready"
+          test -f build/bin/gui/Linux/x64/FlowWeaver && echo "::notice::build/bin/gui/Linux/x64/FlowWeaver ready"
 
       - name: Create tar.gz archive
         run: |
           set -euo pipefail
-          ARCHIVE="snishaper-linux-amd64.tar.gz"
+          ARCHIVE="flowweaver-linux-amd64.tar.gz"
           tar -czf "$ARCHIVE" -C build/bin/gui/Linux/x64 .
           ls -lh "$ARCHIVE"
           echo "::notice::$ARCHIVE ready"
@@ -592,7 +592,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: linux-artifacts
-          path: snishaper-linux-amd64.tar.gz
+          path: flowweaver-linux-amd64.tar.gz
           retention-days: 3
 
   # ------------------------------------------------------------------
@@ -648,13 +648,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Write-Host "::endgroup::"
           $targets = @(
-            @{ dir = 'build\bin\cli\Windows\x64';   name = 'snishaper-cli-windows-amd64' }
-            @{ dir = 'build\bin\cli\Windows\x86';   name = 'snishaper-cli-windows-386' }
-            @{ dir = 'build\bin\cli\Windows\arm64'; name = 'snishaper-cli-windows-arm64' }
-            @{ dir = 'build\bin\cli\Linux\x64';     name = 'snishaper-cli-linux-amd64' }
-            @{ dir = 'build\bin\cli\Linux\arm64';   name = 'snishaper-cli-linux-arm64' }
-            @{ dir = 'build\bin\cli\Darwin\x64';    name = 'snishaper-cli-darwin-amd64' }
-            @{ dir = 'build\bin\cli\Darwin\arm64';  name = 'snishaper-cli-darwin-arm64' }
+            @{ dir = 'build\bin\cli\Windows\x64';   name = 'flowweaver-cli-windows-amd64' }
+            @{ dir = 'build\bin\cli\Windows\x86';   name = 'flowweaver-cli-windows-386' }
+            @{ dir = 'build\bin\cli\Windows\arm64'; name = 'flowweaver-cli-windows-arm64' }
+            @{ dir = 'build\bin\cli\Linux\x64';     name = 'flowweaver-cli-linux-amd64' }
+            @{ dir = 'build\bin\cli\Linux\arm64';   name = 'flowweaver-cli-linux-arm64' }
+            @{ dir = 'build\bin\cli\Darwin\x64';    name = 'flowweaver-cli-darwin-amd64' }
+            @{ dir = 'build\bin\cli\Darwin\arm64';  name = 'flowweaver-cli-darwin-arm64' }
           )
           foreach ($t in $targets) {
             if (-not (Test-Path $t.dir)) {
@@ -675,9 +675,9 @@ jobs:
           RELEASE_CHANNEL: ${{ inputs.channel }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $LDFLAGS = "-s -w -X snishaper/app.buildVersion=$env:DISPLAY_VERSION"
+          $LDFLAGS = "-s -w -X flowweaver/app.buildVersion=$env:DISPLAY_VERSION"
           if ($env:RELEASE_CHANNEL -and $env:RELEASE_CHANNEL -ne 'release') {
-            $LDFLAGS += " -X snishaper/app.buildChannel=$env:RELEASE_CHANNEL"
+            $LDFLAGS += " -X flowweaver/app.buildChannel=$env:RELEASE_CHANNEL"
           }
           $env:GOOS = 'windows'; $env:GOARCH = 'amd64'; $env:CGO_ENABLED = '0'
           go build -tags "with_gvisor headless" -ldflags="$LDFLAGS" -o cli-smoke.exe ./cli
@@ -696,7 +696,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: cli-artifacts
-          path: snishaper-cli-*.7z
+          path: flowweaver-cli-*.7z
           retention-days: 3
 
   # ------------------------------------------------------------------
@@ -953,29 +953,29 @@ jobs:
             [void]$sb.AppendLine("| $($file.Name) | $purpose (Size: $sizeMB MB) | $md5 |")
           }
 
-          $bundle = Get-ChildItem -Path $assetsDir -Filter '*_x64*.7z' -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'snishaper-windows-amd64.7z' } | Select-Object -First 1
-          $portable = Get-ChildItem -Path $assetsDir -Filter 'snishaper-windows-amd64.7z' -ErrorAction SilentlyContinue | Select-Object -First 1
+          $bundle = Get-ChildItem -Path $assetsDir -Filter '*_x64*.7z' -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'flowweaver-windows-amd64.7z' } | Select-Object -First 1
+          $portable = Get-ChildItem -Path $assetsDir -Filter 'flowweaver-windows-amd64.7z' -ErrorAction SilentlyContinue | Select-Object -First 1
           $unsigned = Get-ChildItem -Path $assetsDir -Filter 'unsigned_*' -ErrorAction SilentlyContinue | Select-Object -First 1
           $setupExe = Get-ChildItem -Path $assetsDir -Filter '*-x64Setup.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-          $linuxTgz = Get-ChildItem -Path $assetsDir -Filter 'snishaper-linux-amd64.tar.gz' -ErrorAction SilentlyContinue | Select-Object -First 1
+          $linuxTgz = Get-ChildItem -Path $assetsDir -Filter 'flowweaver-linux-amd64.tar.gz' -ErrorAction SilentlyContinue | Select-Object -First 1
 
           Add-AssetRow $setupExe "Windows installer (Inno Setup): classic guided installation with license and desktop shortcut, for regular users"
           Add-AssetRow $bundle "Signed bundle: mixed-architecture MSIX package + signing certificate (devcert.pfx) + install.bat + signing password, for one-click sideload"
-          Add-AssetRow $portable "Windows portable build: extract and run snishaper.exe directly, no installation required"
+          Add-AssetRow $portable "Windows portable build: extract and run flowweaver.exe directly, no installation required"
           Add-AssetRow $unsigned "Unsigned mixed-architecture MSIX package for Microsoft Partner Center submission (re-signed by Microsoft on upload)"
-          Add-AssetRow $linuxTgz "Linux portable build (amd64): extract and run ./SniShaper, requires GTK4/WebKitGTK runtime"
+          Add-AssetRow $linuxTgz "Linux portable build (amd64): extract and run ./FlowWeaver, requires GTK4/WebKitGTK runtime"
 
           $cliPurpose = @{
-            'snishaper-cli-windows-amd64.7z'  = 'CLI (headless): Windows x64, extract and run snishaper.exe, includes config/ and rules/ seed files'
-            'snishaper-cli-windows-386.7z'      = 'CLI (headless): Windows x86 (32-bit), extract and run snishaper.exe, includes config/ and rules/ seed files'
-            'snishaper-cli-windows-arm64.7z'  = 'CLI (headless): Windows ARM64, extract and run snishaper.exe, includes config/ and rules/ seed files'
-            'snishaper-cli-linux-amd64.7z'    = 'CLI (headless): Linux x64, extract and run ./snishaper, includes config/ and rules/ seed files'
-            'snishaper-cli-linux-arm64.7z'    = 'CLI (headless): Linux ARM64, extract and run ./snishaper, includes config/ and rules/ seed files'
-            'snishaper-cli-darwin-amd64.7z'   = 'CLI (headless): macOS x64, extract and run ./snishaper, includes config/ and rules/ seed files'
-            'snishaper-cli-darwin-arm64.7z'   = 'CLI (headless): macOS ARM64 (Apple Silicon), extract and run ./snishaper, includes config/ and rules/ seed files'
+            'flowweaver-cli-windows-amd64.7z'  = 'CLI (headless): Windows x64, extract and run flowweaver.exe, includes config/ and rules/ seed files'
+            'flowweaver-cli-windows-386.7z'      = 'CLI (headless): Windows x86 (32-bit), extract and run flowweaver.exe, includes config/ and rules/ seed files'
+            'flowweaver-cli-windows-arm64.7z'  = 'CLI (headless): Windows ARM64, extract and run flowweaver.exe, includes config/ and rules/ seed files'
+            'flowweaver-cli-linux-amd64.7z'    = 'CLI (headless): Linux x64, extract and run ./flowweaver, includes config/ and rules/ seed files'
+            'flowweaver-cli-linux-arm64.7z'    = 'CLI (headless): Linux ARM64, extract and run ./flowweaver, includes config/ and rules/ seed files'
+            'flowweaver-cli-darwin-amd64.7z'   = 'CLI (headless): macOS x64, extract and run ./flowweaver, includes config/ and rules/ seed files'
+            'flowweaver-cli-darwin-arm64.7z'   = 'CLI (headless): macOS ARM64 (Apple Silicon), extract and run ./flowweaver, includes config/ and rules/ seed files'
           }
           Get-ChildItem -Path $assetsDir -File | Where-Object {
-            $_.Name -match '^snishaper-cli-(windows|linux|darwin)-(amd64|arm64|386)\.7z$'
+            $_.Name -match '^flowweaver-cli-(windows|linux|darwin)-(amd64|arm64|386)\.7z$'
           } | Sort-Object Name | ForEach-Object {
             $p = if ($cliPurpose.ContainsKey($_.Name)) { $cliPurpose[$_.Name] } else { 'CLI portable build (7z)' }
             Add-AssetRow $_ $p
@@ -1019,7 +1019,7 @@ jobs:
             (Join-Path $assetsDir 'unsigned_*'),
             (Join-Path $assetsDir '*.exe'),
             (Join-Path $assetsDir '*.7z'),
-            (Join-Path $assetsDir 'snishaper-linux-amd64.tar.gz'),
+            (Join-Path $assetsDir 'flowweaver-linux-amd64.tar.gz'),
             '--title', $releaseName,
             '--notes-file', $notesFile
           )

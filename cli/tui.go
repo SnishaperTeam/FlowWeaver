@@ -14,7 +14,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	"snishaper/app"
+	"flowweaver/app"
 )
 
 const catalogPage = "catalog"
@@ -51,7 +51,7 @@ func newTUI(a *app.App) *tuiApp {
 	t.catalog.SetBorder(true).SetTitle(" 命令目录（Esc 关闭，↑↓ 滚动） ")
 	t.pages = tview.NewPages()
 	t.input = tview.NewInputField().
-		SetLabel("snishaper> ").
+		SetLabel("flowweaver> ").
 		SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor).
 		SetPlaceholder("输入 目录 或 F1 查看命令")
 	t.input.SetDoneFunc(func(key tcell.Key) {

@@ -45,7 +45,7 @@ try {
 }
 $ns = [System.Xml.XmlNamespaceManager]::new($doc.NameTable)
 $ns.AddNamespace('f', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
-$ns.AddNamespace('rel', 'http://schemas.snishaper.dev/release')
+$ns.AddNamespace('rel', 'http://schemas.flowweaver.dev/release')
 $relVersionNode = $doc.SelectSingleNode('/f:Package/rel:Version', $ns)
 $relChannelNode = $doc.SelectSingleNode('/f:Package/rel:ReleaseChannel', $ns)
 $identityNode = $doc.SelectSingleNode('/f:Package/f:Identity', $ns)

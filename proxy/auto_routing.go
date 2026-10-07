@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/rules"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/rules"
 )
 
 // AutoRoutingMode defines the auto-routing preset.

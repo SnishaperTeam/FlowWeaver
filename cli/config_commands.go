@@ -10,9 +10,9 @@ import (
 	"runtime"
 	"strings"
 
-	"snishaper/app"
-	"snishaper/core"
-	"snishaper/proxy"
+	"flowweaver/app"
+	"flowweaver/core"
+	"flowweaver/proxy"
 )
 
 // configApp builds an App that only loads settings and rules. Commands that
@@ -732,7 +732,7 @@ func opUpdate(args []string, out cmdOut) int {
 			}
 		}
 		if res.HasUpdate {
-			out("有可用更新，执行 snishaper update download")
+			out("有可用更新，执行 flowweaver update download")
 			return 0
 		}
 		out("已是最新版本")
@@ -749,7 +749,7 @@ func opUpdate(args []string, out cmdOut) int {
 			return 1
 		}
 		out("已下载: " + result.LocalPath)
-		out("安装: snishaper update install")
+		out("安装: flowweaver update install")
 		return 0
 	case "install":
 		path := argAt(args, 1)

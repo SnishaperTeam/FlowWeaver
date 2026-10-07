@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	"snishaper/common"
-	"snishaper/pkg/netiface"
+	"flowweaver/common"
+	"flowweaver/pkg/netiface"
 
 	utls "github.com/refraction-networking/utls"
 )

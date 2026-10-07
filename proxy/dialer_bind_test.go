@@ -4,7 +4,7 @@ import (
 	"net/netip"
 	"testing"
 
-	"snishaper/pkg/netiface"
+	"flowweaver/pkg/netiface"
 )
 
 func TestOutboundFamily(t *testing.T) {

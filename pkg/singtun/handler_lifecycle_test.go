@@ -14,8 +14,8 @@ import (
 
 	M "github.com/sagernet/sing/common/metadata"
 
-	"snishaper/pkg/netiface"
-	"snishaper/proxy"
+	"flowweaver/pkg/netiface"
+	"flowweaver/proxy"
 )
 
 func TestIPv6EgressProbeIsCachedAndInvalidatable(t *testing.T) {

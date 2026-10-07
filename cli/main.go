@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"snishaper/app"
-	"snishaper/common"
-	"snishaper/core"
+	"flowweaver/app"
+	"flowweaver/common"
+	"flowweaver/core"
 )
 
 func main() {
@@ -90,7 +90,7 @@ func dispatchCommand(args []string, out cmdOut) int {
 		return opLogs(n, out)
 	case "proxy":
 		if len(args) != 2 || (args[1] != "on" && args[1] != "off") {
-			out("用法: snishaper proxy on|off")
+			out("用法: flowweaver proxy on|off")
 			return 2
 		}
 		if args[1] == "on" {
@@ -99,7 +99,7 @@ func dispatchCommand(args []string, out cmdOut) int {
 		return opStopProxy(out)
 	case "sysproxy":
 		if len(args) != 2 || (args[1] != "on" && args[1] != "off") {
-			out("用法: snishaper sysproxy on|off")
+			out("用法: flowweaver sysproxy on|off")
 			return 2
 		}
 		if args[1] == "on" {
@@ -165,7 +165,7 @@ func dispatchCommand(args []string, out cmdOut) int {
 
 func runTUI() {
 	if coreRunning() {
-		fmt.Fprintln(os.Stderr, "服务已在运行中；请先停止: snishaper stop")
+		fmt.Fprintln(os.Stderr, "服务已在运行中；请先停止: flowweaver stop")
 		os.Exit(1)
 	}
 	a := app.NewApp()
@@ -236,13 +236,13 @@ func monitorCore(a *app.App) {
 
 func writePid() {
 	if ep, err := os.Executable(); err == nil {
-		_ = os.WriteFile(filepath.Join(filepath.Dir(ep), "snishaper.pid"), []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
+		_ = os.WriteFile(filepath.Join(filepath.Dir(ep), "flowweaver.pid"), []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
 	}
 }
 
 func removePid() {
 	if ep, err := os.Executable(); err == nil {
-		_ = os.Remove(filepath.Join(filepath.Dir(ep), "snishaper.pid"))
+		_ = os.Remove(filepath.Join(filepath.Dir(ep), "flowweaver.pid"))
 	}
 }
 

@@ -79,7 +79,7 @@ func manifestChannel() (string, error) {
 				continue
 			}
 			var pkg struct {
-				Channel string `xml:"http://schemas.snishaper.dev/release ReleaseChannel"`
+				Channel string `xml:"http://schemas.flowweaver.dev/release ReleaseChannel"`
 			}
 			if err := xml.Unmarshal(data, &pkg); err != nil {
 				lastErr = err
@@ -117,8 +117,8 @@ func manifestVersionFull() (string, error) {
 				continue
 			}
 			var pkg struct {
-				RelVersion string `xml:"http://schemas.snishaper.dev/release Version"`
-				RelChannel string `xml:"http://schemas.snishaper.dev/release ReleaseChannel"`
+				RelVersion string `xml:"http://schemas.flowweaver.dev/release Version"`
+				RelChannel string `xml:"http://schemas.flowweaver.dev/release ReleaseChannel"`
 				Identity   struct {
 					Version string `xml:"Version,attr"`
 				} `xml:"Identity"`

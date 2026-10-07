@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/subscription"
 )
 
 type RuleManager struct {
@@ -105,9 +105,9 @@ func (r *RuleManager) SetRules(rules []Rule) {
 	r.rules = rules
 }
 
-// routerDebugEnabled 由 SNISHAPER_ROUTER_DEBUG=1 开启；
+// routerDebugEnabled 由 FLOWWEAVER_ROUTER_DEBUG=1 开启；
 // 默认关闭，避免每个请求都写路由日志刷屏
-var routerDebugEnabled = os.Getenv("SNISHAPER_ROUTER_DEBUG") == "1"
+var routerDebugEnabled = os.Getenv("FLOWWEAVER_ROUTER_DEBUG") == "1"
 
 func (r *RuleManager) matchRule(host, mode string) Rule {
 	r.mu.RLock()

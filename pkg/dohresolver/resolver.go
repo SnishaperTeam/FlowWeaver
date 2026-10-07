@@ -14,14 +14,14 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/common"
+	"flowweaver/common"
 
 	"github.com/miekg/dns"
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/http3"
 	utls "github.com/refraction-networking/utls"
 
-	"snishaper/pkg/netiface"
+	"flowweaver/pkg/netiface"
 )
 
 type CertVerifyConfig = common.CertVerifyConfig
@@ -264,7 +264,7 @@ func (r *FailoverResolver) exchangeNodeWithRetry(ctx context.Context, node *DNSN
 	req.ContentLength = int64(len(buf))
 	req.Header.Set("Content-Type", "application/dns-message")
 	req.Header.Set("Accept", "application/dns-message")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SNIShaper/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 FlowWeaver/1.0")
 
 	resp, err := client.Do(req)
 	if err != nil {

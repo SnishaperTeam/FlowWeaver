@@ -15,7 +15,7 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 
-	"snishaper/pkg/netiface"
+	"flowweaver/pkg/netiface"
 )
 
 func TestShouldHijackDNS(t *testing.T) {

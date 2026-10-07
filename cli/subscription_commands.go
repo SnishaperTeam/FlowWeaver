@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"snishaper/common"
-	"snishaper/pkg/subscription"
+	"flowweaver/common"
+	"flowweaver/pkg/subscription"
 )
 
 // subscriptionStore opens the same store the app and core use, so CLI changes
@@ -151,7 +151,7 @@ func subscriptionAdd(args []string, out cmdOut) int {
 	out("  节点数: " + fmt.Sprint(entry.NodeCount))
 	out("  代理组: " + fmt.Sprint(entry.RuleCount))
 	out("  " + formatQuota(entry.UserInfo))
-	out("  查看节点: snishaper sub nodes " + entry.Name)
+	out("  查看节点: flowweaver sub nodes " + entry.Name)
 	return 0
 }
 
@@ -233,7 +233,7 @@ func subscriptionUse(args []string, out cmdOut) int {
 	out("已启用: " + entry.Name)
 	if !entry.Builtin && len(entry.Groups) > 0 {
 		out("  可用代理组: " + strings.Join(groupNames(entry.Groups), ", "))
-		out("  选择节点: snishaper sub select <组> <节点>")
+		out("  选择节点: flowweaver sub select <组> <节点>")
 	}
 	return 0
 }
@@ -328,14 +328,14 @@ func subscriptionNodes(args []string, out cmdOut) int {
 		out("")
 	}
 
-	out("选择节点: snishaper sub select <组> <节点名>")
+	out("选择节点: flowweaver sub select <组> <节点名>")
 	return 0
 }
 
 func subscriptionSelect(args []string, out cmdOut) int {
 	if len(args) < 2 {
 		out("用法: sub select <组> <节点名>")
-		out("可用组与节点: snishaper sub nodes")
+		out("可用组与节点: flowweaver sub nodes")
 		return 2
 	}
 
@@ -358,7 +358,7 @@ func subscriptionSelect(args []string, out cmdOut) int {
 		return 1
 	}
 	out(fmt.Sprintf("组 %s 已切换到 %s", group, node))
-	out("提示: 重新启动服务后生效: snishaper stop && snishaper start")
+	out("提示: 重新启动服务后生效: flowweaver stop && flowweaver start")
 	return 0
 }
 

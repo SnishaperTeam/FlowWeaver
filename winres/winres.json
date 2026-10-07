@@ -7,7 +7,7 @@
   "RT_MANIFEST": {
     "#1": {
       "0409": {
-        "description": "SniShaper",
+        "description": "FlowWeaver",
         "minimum-os": "win10",
         "execution-level": "as invoker",
         "dpi-awareness": "per monitor v2",
@@ -25,36 +25,36 @@
         },
         "info": {
           "0409": {
-            "Comments": "SniShaper is a local proxy tool designed for complex network environments, integrating ECH Injection, TLS Fragmentation, QUIC Obfuscation, Session Migration and other protocol stack technologies, paired with a TUN Virtual NIC for full traffic takeover, delivering a stable and flexible browsing experience.",
-            "CompanyName": "Snishaper Team and JetCPP Team",
-            "FileDescription": "SniShaper",
+            "Comments": "FlowWeaver is a local proxy tool designed for complex network environments, integrating ECH Injection, TLS Fragmentation, QUIC Obfuscation, Session Migration and other protocol stack technologies, paired with a TUN Virtual NIC for full traffic takeover, delivering a stable and flexible browsing experience.",
+            "CompanyName": "FlowWeaver Team and JetCPP Team",
+            "FileDescription": "FlowWeaver",
             "FileVersion": "1.29.0.0",
-            "InternalName": "snishaper",
-            "LegalCopyright": "Copyright (c) Snishaper Team and JetCPP Team",
-            "OriginalFilename": "snishaper.exe",
-            "ProductName": "SniShaper",
+            "InternalName": "flowweaver",
+            "LegalCopyright": "Copyright (c) FlowWeaver Team and JetCPP Team",
+            "OriginalFilename": "flowweaver.exe",
+            "ProductName": "FlowWeaver",
             "ProductVersion": "1.29.0.0"
           },
           "0804": {
-            "Comments": "SniShaper 是一款专为复杂网络环境设计的本地代理软件，通过 ECH 注入、TLS 分片、QUIC 混淆、会话迁移等多种功能，在复杂网络环境下提升体验。",
-            "CompanyName": "Snishaper Team and JetCPP Team",
-            "FileDescription": "SniShaper",
+            "Comments": "FlowWeaver 是一款专为复杂网络环境设计的本地代理软件，通过 ECH 注入、TLS 分片、QUIC 混淆、会话迁移等多种功能，在复杂网络环境下提升体验。",
+            "CompanyName": "FlowWeaver Team and JetCPP Team",
+            "FileDescription": "FlowWeaver",
             "FileVersion": "1.29.0.0",
-            "InternalName": "snishaper",
-            "LegalCopyright": "Copyright (c) Snishaper Team and JetCPP Team",
-            "OriginalFilename": "snishaper.exe",
-            "ProductName": "SniShaper",
+            "InternalName": "flowweaver",
+            "LegalCopyright": "Copyright (c) FlowWeaver Team and JetCPP Team",
+            "OriginalFilename": "flowweaver.exe",
+            "ProductName": "FlowWeaver",
             "ProductVersion": "1.29.0.0"
           },
           "0419": {
-            "Comments": "SniShaper — это локальный прокси-инструмент, разработанный специально для сложных сетевых условий, интегрирующий инъекцию ECH, фрагментацию TLS, маскировку QUIC, миграцию сессий и другие технологии стека протоколов, в сочетании с виртуальным TUN-интерфейсом для полного перехвата трафика, обеспечивая стабильный и гибкий доступ в интернет.",
-            "CompanyName": "Snishaper Team and JetCPP Team",
-            "FileDescription": "SniShaper",
+            "Comments": "FlowWeaver — это локальный прокси-инструмент, разработанный специально для сложных сетевых условий, интегрирующий инъекцию ECH, фрагментацию TLS, маскировку QUIC, миграцию сессий и другие технологии стека протоколов, в сочетании с виртуальным TUN-интерфейсом для полного перехвата трафика, обеспечивая стабильный и гибкий доступ в интернет.",
+            "CompanyName": "FlowWeaver Team and JetCPP Team",
+            "FileDescription": "FlowWeaver",
             "FileVersion": "1.29.0.0",
-            "InternalName": "snishaper",
-            "LegalCopyright": "Copyright (c) Snishaper Team and JetCPP Team",
-            "OriginalFilename": "snishaper.exe",
-            "ProductName": "SniShaper",
+            "InternalName": "flowweaver",
+            "LegalCopyright": "Copyright (c) FlowWeaver Team and JetCPP Team",
+            "OriginalFilename": "flowweaver.exe",
+            "ProductName": "FlowWeaver",
             "ProductVersion": "1.29.0.0"
           }
         }

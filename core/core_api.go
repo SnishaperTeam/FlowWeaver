@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/common"
-	"snishaper/proxy"
+	"flowweaver/common"
+	"flowweaver/proxy"
 )
 
 const coreRPCAddr = "127.0.0.1:18933"

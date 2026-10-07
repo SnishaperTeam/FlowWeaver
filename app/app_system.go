@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"snishaper/pkg/sysproxy"
+	"flowweaver/pkg/sysproxy"
 )
 
 func (a *App) isManagedSystemProxy(status SystemProxyStatus) bool {

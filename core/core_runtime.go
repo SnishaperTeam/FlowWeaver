@@ -15,12 +15,12 @@ import (
 
 	"github.com/miekg/dns"
 
-	"snishaper/common"
-	"snishaper/pkg/certmanager"
-	"snishaper/pkg/netiface"
-	"snishaper/pkg/singtun"
-	"snishaper/pkg/subscription"
-	"snishaper/proxy"
+	"flowweaver/common"
+	"flowweaver/pkg/certmanager"
+	"flowweaver/pkg/netiface"
+	"flowweaver/pkg/singtun"
+	"flowweaver/pkg/subscription"
+	"flowweaver/proxy"
 )
 
 // logBufPool provides reusable byte buffers for log formatting
@@ -276,7 +276,7 @@ func (r *coreRuntime) startProxy() error {
 	if originalPort == 0 {
 		originalPort = 8080
 	}
-	availablePort, err := proxy.EnsurePortAvailable(originalPort, []string{"snishaper", "usque"})
+	availablePort, err := proxy.EnsurePortAvailable(originalPort, []string{"flowweaver", "usque"})
 	if err != nil {
 		availablePort = originalPort
 	}
@@ -350,7 +350,7 @@ func (r *coreRuntime) startTUN() (err error) {
 	}
 	r.appendLog("[core] native sing-tun started, status=" + fmt.Sprintf("%v", r.nativeTUN.Status().Running))
 	// 通知 ProxyServer 启用 TUN 模式，出站连接绑物理网卡。
-	// 出站网卡在 TUN 启动之后才配置：此时网卡列表已包含 SniShaper 自己的虚拟
+	// 出站网卡在 TUN 启动之后才配置：此时网卡列表已包含 FlowWeaver 自己的虚拟
 	// 网卡，必须让 netiface 重新扫描，否则可能把 TUN 自己选成出站网卡。
 	// 注意 SetTUNMode 必须在 Start 成功之后：Start 失败时 TUN 并不存在，
 	// 此时打开 TUN 模式会让所有出站连接去找一张并不存在的网卡。

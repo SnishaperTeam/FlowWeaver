@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"snishaper/common"
+	"flowweaver/common"
 )
 
 // enableCrashLog points the Go runtime crash output at a file next to the run

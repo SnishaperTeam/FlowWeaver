@@ -20,14 +20,14 @@ import (
 	"strings"
 	"time"
 
-	"snishaper/common"
-	"snishaper/core"
-	"snishaper/pkg/certmanager"
-	"snishaper/pkg/cfpool"
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/netiface"
-	"snishaper/pkg/subscription"
-	"snishaper/proxy"
+	"flowweaver/common"
+	"flowweaver/core"
+	"flowweaver/pkg/certmanager"
+	"flowweaver/pkg/cfpool"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/netiface"
+	"flowweaver/pkg/subscription"
+	"flowweaver/proxy"
 )
 
 func NewApp() *App {
@@ -101,7 +101,7 @@ func (a *App) StartProxy() error {
 		originalPort = 8080
 	}
 
-	availablePort, err := proxy.EnsurePortAvailable(originalPort, []string{"snishaper", "usque"})
+	availablePort, err := proxy.EnsurePortAvailable(originalPort, []string{"flowweaver", "usque"})
 	if err != nil {
 		a.appendLog(fmt.Sprintf("[warn] Port probe failed: %v, attempting with original port", err))
 		availablePort = originalPort

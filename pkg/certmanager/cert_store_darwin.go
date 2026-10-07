@@ -41,7 +41,7 @@ func platformListCerts() ([]InstalledCert, error) {
 
 	result := []InstalledCert{}
 	for _, cert := range certs {
-		if !isSniShaperCert(cert.Cert) {
+		if !isFlowWeaverCert(cert.Cert) {
 			continue
 		}
 		result = append(result, InstalledCert{
@@ -169,14 +169,14 @@ func collectCACerts() ([]systemCert, error) {
 	return result, nil
 }
 
-func isSniShaperCert(cert *x509.Certificate) bool {
+func isFlowWeaverCert(cert *x509.Certificate) bool {
 	if cert == nil {
 		return false
 	}
-	if strings.Contains(strings.ToLower(cert.Subject.String()), "snishaper") {
+	if strings.Contains(strings.ToLower(cert.Subject.String()), "flowweaver") {
 		return true
 	}
-	return strings.Contains(strings.ToLower(cert.Issuer.String()), "snishaper")
+	return strings.Contains(strings.ToLower(cert.Issuer.String()), "flowweaver")
 }
 
 func loginKeychainPath() string {

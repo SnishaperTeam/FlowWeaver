@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"snishaper/common"
+	"flowweaver/common"
 
 	"github.com/miekg/dns"
 	"github.com/sagernet/sing-tun"
@@ -22,8 +22,8 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/netiface"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/netiface"
 )
 
 // ponytail: JudgeFlow returns ActionAccept unconditionally; add flow-level
@@ -43,8 +43,8 @@ type UDPRelay interface {
 
 // debugLogEnabled 控制每连接级别的详细日志。默认关闭：这些日志在浏览器
 // 正常使用时每条 TCP 连接都会打一到三行，会把有用的错误信息完全淹没。
-// 通过环境变量 SNISHAPER_TUN_DEBUG=1 打开。
-var debugLogEnabled = os.Getenv("SNISHAPER_TUN_DEBUG") == "1"
+// 通过环境变量 FLOWWEAVER_TUN_DEBUG=1 打开。
+var debugLogEnabled = os.Getenv("FLOWWEAVER_TUN_DEBUG") == "1"
 
 // tracef 仅在调试模式输出每连接的常规日志；错误路径仍走 logf。
 func (h *Handler) tracef(format string, args ...any) {
@@ -55,7 +55,7 @@ func (h *Handler) tracef(format string, args ...any) {
 }
 
 // Handler 实现 sing-tun 的 Handler 接口
-// 负责将 TUN 流量转发到 SniShaper Proxy
+// 负责将 TUN 流量转发到 FlowWeaver Proxy
 type Handler struct {
 	proxyAddr   string
 	resolver    *dohresolver.FailoverResolver

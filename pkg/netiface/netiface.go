@@ -48,18 +48,18 @@ func FamilyOf(addr string) int {
 	return FamilyIPv6
 }
 
-// tunPrefixes are the address ranges SniShaper assigns to its own TUN device.
+// tunPrefixes are the address ranges FlowWeaver assigns to its own TUN device.
 // An address inside them is never a valid outbound source.
 var tunPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("198.18.0.0/15"),
 	netip.MustParsePrefix("fd65:198:18::/64"),
 }
 
-// tunNames are the interface names SniShaper gives its own devices. Matching
+// tunNames are the interface names FlowWeaver gives its own devices. Matching
 // is exact-ish: a name that merely contains one of these as a substring of a
 // longer word (for example "Tundra" or "SetupVPN") is not treated as the TUN.
 var tunNames = []string{
-	"snishaper",
+	"flowweaver",
 	"sni-shaper",
 	"singtun",
 	"sing-tun",
@@ -89,7 +89,7 @@ var virtualNameMarkers = []string{
 }
 
 // DefaultExcludedNames is the built-in blacklist of interfaces that must never
-// carry SniShaper outbound traffic. These are container bridges, virtual
+// carry FlowWeaver outbound traffic. These are container bridges, virtual
 // machine host adapters, tunnel devices and other software-only interfaces
 // that have no presence on any physical medium; sending traffic through one
 // either blackholes it or feeds it back into the tunnel.
@@ -232,7 +232,7 @@ type candidate struct {
 	usableSource bool
 }
 
-// IsOwnTunnel reports whether name belongs to a SniShaper TUN device.
+// IsOwnTunnel reports whether name belongs to a FlowWeaver TUN device.
 func IsOwnTunnel(name string) bool {
 	lowered := strings.ToLower(strings.TrimSpace(name))
 	for _, candidate := range tunNames {
@@ -273,7 +273,7 @@ func isAllDigits(s string) bool {
 	return true
 }
 
-// inTunPrefix reports whether addr belongs to SniShaper's own TUN addressing.
+// inTunPrefix reports whether addr belongs to FlowWeaver's own TUN addressing.
 func inTunPrefix(addr netip.Addr) bool {
 	for _, prefix := range tunPrefixes {
 		if prefix.Contains(addr) {

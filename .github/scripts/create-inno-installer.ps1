@@ -24,10 +24,10 @@ $archCandidates = if ($Arch) { @($Arch) } else { @('x64', 'x86', 'arm64') }
 $binDir = $null
 foreach ($candidate in $archCandidates) {
     $dir = Join-Path $RepoRoot "build/bin/gui/Windows/$candidate"
-    if (Test-Path (Join-Path $dir 'snishaper.exe')) { $binDir = $dir; break }
+    if (Test-Path (Join-Path $dir 'flowweaver.exe')) { $binDir = $dir; break }
 }
 if (-not $binDir) {
-    Write-Host "::error::no Windows GUI payload found (expected build/bin/gui/Windows/<arch>/snishaper.exe)"
+    Write-Host "::error::no Windows GUI payload found (expected build/bin/gui/Windows/<arch>/flowweaver.exe)"
     exit 1
 }
 $setupArch = Split-Path -Leaf $binDir
@@ -38,15 +38,15 @@ if ($setupArch -ne 'x64') {
 
 $outDir = Join-Path $RepoRoot 'installer'
 New-Item -ItemType Directory -Path $outDir -Force | Out-Null
-$outName = "Snishaper-$displayVersion-${setupArch}Setup"
+$outName = "FlowWeaver-$displayVersion-${setupArch}Setup"
 
 $iss = @'
-; Inno Setup script generated for SniShaper CI builds
-#define MyAppName "Snishaper"
+; Inno Setup script generated for FlowWeaver CI builds
+#define MyAppName "FlowWeaver"
 #define MyAppVersion "__VERSION__"
 #define MyAppPublisher "SnishaperTeam And JetCPPTeam"
 #define MyAppURL "https://jetcpp.ccwu.cc/"
-#define MyAppExeName "snishaper.exe"
+#define MyAppExeName "flowweaver.exe"
 
 [Setup]
 AppId={{3F2E4DA1-5C8B-4ECD-BDC4-426A5965F8D4}

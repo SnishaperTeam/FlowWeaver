@@ -14,7 +14,7 @@ import (
 // macOS autostart is a per user launch agent: the plist lives in
 // ~/Library/LaunchAgents and launchd starts it with the user's session.
 
-const launchAgentLabel = "com.snishaper.desktop"
+const launchAgentLabel = "com.flowweaver.desktop"
 
 func buildAutoStartCommand(execPath string, showMainWindow, autoProxy bool) string {
 	args := []string{execPath}

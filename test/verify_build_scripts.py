@@ -11,21 +11,21 @@ PS1 = os.path.join(ROOT, "build_windows.ps1")
 SH = os.path.join(ROOT, "build.sh")
 
 CLI_MATRIX = [
-    ("Windows", "x64", "snishaper.exe"),
-    ("Windows", "x86", "snishaper.exe"),
-    ("Windows", "arm64", "snishaper.exe"),
-    ("Linux", "x64", "snishaper"),
-    ("Linux", "arm64", "snishaper"),
-    ("Darwin", "x64", "snishaper"),
-    ("Darwin", "arm64", "snishaper"),
+    ("Windows", "x64", "flowweaver.exe"),
+    ("Windows", "x86", "flowweaver.exe"),
+    ("Windows", "arm64", "flowweaver.exe"),
+    ("Linux", "x64", "flowweaver"),
+    ("Linux", "arm64", "flowweaver"),
+    ("Darwin", "x64", "flowweaver"),
+    ("Darwin", "arm64", "flowweaver"),
 ]
 
 GUI_MATRIX = [
-    ("Windows", "x64", "snishaper.exe"),
-    ("Windows", "x86", "snishaper.exe"),
-    ("Windows", "arm64", "snishaper.exe"),
-    ("Linux", "x64", "SniShaper"),
-    ("Linux", "arm64", "SniShaper"),
+    ("Windows", "x64", "flowweaver.exe"),
+    ("Windows", "x86", "flowweaver.exe"),
+    ("Windows", "arm64", "flowweaver.exe"),
+    ("Linux", "x64", "FlowWeaver"),
+    ("Linux", "arm64", "FlowWeaver"),
 ]
 
 
@@ -97,7 +97,7 @@ def main():
     results = []
 
     print("=" * 78)
-    print("SniShaper build script verification")
+    print("FlowWeaver build script verification")
     print("root=%s" % ROOT)
     print("=" * 78)
 
@@ -168,16 +168,16 @@ def main():
         code, out, err = powershell(["-CI", "-Platform", "windows", "-Arch", "x64", "-Type", "cli"], args.timeout)
         show("ps1 -CI -Platform windows -Arch x64 -Type cli (real build)", code, out, err)
         results.append(check("ps1 CLI windows/x64 exit 0", code == 0, "exit=%d" % code))
-        path = os.path.join(ROOT, "build", "bin", "cli", "Windows", "x64", "snishaper.exe")
-        results.append(check("artifact build/bin/cli/Windows/x64/snishaper.exe", os.path.isfile(path)))
+        path = os.path.join(ROOT, "build", "bin", "cli", "Windows", "x64", "flowweaver.exe")
+        results.append(check("artifact build/bin/cli/Windows/x64/flowweaver.exe", os.path.isfile(path)))
 
     if args.scope in ("gui", "all"):
         for arch in ("x64", "x86", "arm64"):
             code, out, err = powershell(["-CI", "-Platform", "windows", "-Arch", arch, "-Type", "gui"], args.timeout)
             show("ps1 -CI -Platform windows -Arch %s -Type gui (real build)" % arch, code, out, err)
             results.append(check("ps1 GUI windows/%s exit 0" % arch, code == 0, "exit=%d" % code))
-            path = os.path.join(ROOT, "build", "bin", "gui", "Windows", arch, "snishaper.exe")
-            results.append(check("artifact gui/Windows/%s/snishaper.exe" % arch, os.path.isfile(path)))
+            path = os.path.join(ROOT, "build", "bin", "gui", "Windows", arch, "flowweaver.exe")
+            results.append(check("artifact gui/Windows/%s/flowweaver.exe" % arch, os.path.isfile(path)))
 
     print("")
     print("=" * 78)

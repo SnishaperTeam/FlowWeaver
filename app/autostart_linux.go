@@ -41,7 +41,7 @@ func setAutoStartEnabled(enabled bool, command string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("create autostart dir: %w", err)
 	}
-	entry := filepath.Join(dir, "snishaper.desktop")
+	entry := filepath.Join(dir, "flowweaver.desktop")
 	if !enabled {
 		if err := os.Remove(entry); err != nil && !os.IsNotExist(err) {
 			return err

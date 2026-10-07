@@ -1,4 +1,4 @@
-module snishaper
+module flowweaver
 
 go 1.27.0
 

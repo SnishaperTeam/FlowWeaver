@@ -37,7 +37,7 @@ const (
 	hwndMessage = ^uintptr(2)
 )
 
-const sessionWatcherClassName = "SniShaperSessionWatcher_v1"
+const sessionWatcherClassName = "FlowWeaverSessionWatcher_v1"
 
 type wndClassExW struct {
 	CbSize        uint32

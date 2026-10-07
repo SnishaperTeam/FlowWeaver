@@ -12,7 +12,7 @@ import (
 
 const (
 	autoStartRegistryPath = `Software\Microsoft\Windows\CurrentVersion\Run`
-	autoStartValueName    = "SniShaper"
+	autoStartValueName    = "FlowWeaver"
 )
 
 // buildAutoStartCommand builds the registry Run command.

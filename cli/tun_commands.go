@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"snishaper/core"
-	"snishaper/pkg/sysproxy"
-	"snishaper/proxy"
+	"flowweaver/core"
+	"flowweaver/pkg/sysproxy"
+	"flowweaver/proxy"
 )
 
 // TUN commands mirror the current app level TUN flow one to one:
@@ -142,7 +142,7 @@ func tunStop(out cmdOut) int {
 	}
 	if err := a.EnableSystemProxy(); err != nil {
 		out("恢复系统代理失败: " + err.Error())
-		out("可手动执行: snishaper sysproxy on")
+		out("可手动执行: flowweaver sysproxy on")
 		return 1
 	}
 	if waitForSystemProxy(true, 3*time.Second) {
@@ -150,7 +150,7 @@ func tunStop(out cmdOut) int {
 		clearTunRestorePending()
 		return 0
 	}
-	out("系统代理已提交但尚未生效，可执行 snishaper sysproxy on 重试")
+	out("系统代理已提交但尚未生效，可执行 flowweaver sysproxy on 重试")
 	return 1
 }
 

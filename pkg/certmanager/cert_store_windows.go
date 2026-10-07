@@ -55,7 +55,7 @@ foreach ($spec in $stores) {
   try {
     $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadOnly)
     foreach ($cert in $store.Certificates) {
-      if ($cert.Subject -match 'SniShaper' -or $cert.Issuer -match 'SniShaper') {
+      if ($cert.Subject -match 'FlowWeaver' -or $cert.Issuer -match 'FlowWeaver') {
         $result += [PSCustomObject]@{
           subject = $cert.Subject
           thumbprint = $cert.Thumbprint
@@ -156,7 +156,7 @@ func parseCertutilStoreOutput(output []byte, storeLocation, storeName string) []
 	var certs []InstalledCert
 	for _, block := range blocks {
 		joined := strings.Join(block, "\n")
-		if !strings.Contains(strings.ToLower(joined), "snishaper") {
+		if !strings.Contains(strings.ToLower(joined), "flowweaver") {
 			continue
 		}
 
@@ -166,7 +166,7 @@ func parseCertutilStoreOutput(output []byte, storeLocation, storeName string) []
 
 		for _, line := range block {
 			lower := strings.ToLower(line)
-			if subject == "" && strings.Contains(lower, "snishaper") {
+			if subject == "" && strings.Contains(lower, "flowweaver") {
 				if idx := strings.Index(line, ":"); idx >= 0 && idx+1 < len(line) {
 					subject = strings.TrimSpace(line[idx+1:])
 				}
@@ -187,7 +187,7 @@ func parseCertutilStoreOutput(output []byte, storeLocation, storeName string) []
 			continue
 		}
 		if subject == "" {
-			subject = "SniShaper CA"
+			subject = "FlowWeaver CA"
 		}
 
 		certs = append(certs, InstalledCert{

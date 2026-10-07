@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"snishaper/common"
+	"flowweaver/common"
 )
 
 // StartupConfigOnly prepares logging and loads the settings and rules without

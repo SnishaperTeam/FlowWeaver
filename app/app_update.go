@@ -23,8 +23,8 @@ const (
 	githubRepo      = "SnishaperTeam/FlowWeaver"
 	githubAPIBase   = "https://api.github.com/repos/" + githubRepo
 	githubProxyBase = "https://gh.llkk.cc/"
-	updateUserAgent = "SniShaper-Update/1.0"
-	relNS           = "http://schemas.snishaper.dev/release"
+	updateUserAgent = "FlowWeaver-Update/1.0"
+	relNS           = "http://schemas.flowweaver.dev/release"
 )
 
 var downloadSourceOrder = []string{
@@ -665,9 +665,9 @@ func (a *App) DownloadUpdateAsset(assetURL string) (DownloadResult, error) {
 
 	fileName := filepath.Base(strings.SplitN(assetURL, "?", 2)[0])
 	if fileName == "." || fileName == "/" || fileName == "" {
-		fileName = "snishaper-update.bin"
+		fileName = "flowweaver-update.bin"
 	}
-	dir := filepath.Join(os.TempDir(), "snishaper-update")
+	dir := filepath.Join(os.TempDir(), "flowweaver-update")
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return DownloadResult{}, err
 	}

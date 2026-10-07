@@ -3,7 +3,7 @@ package proxy
 import (
 	"net"
 
-	"snishaper/pkg/tlsfrag"
+	"flowweaver/pkg/tlsfrag"
 )
 
 func (p *ProxyServer) handleTLSFragment(clientConn, upstreamConn net.Conn, host string, rule Rule) {

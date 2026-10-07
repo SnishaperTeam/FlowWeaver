@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/common"
-	"snishaper/pkg/dohresolver"
-	"snishaper/proxy"
+	"flowweaver/common"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/proxy"
 )
 
 type Tester struct {

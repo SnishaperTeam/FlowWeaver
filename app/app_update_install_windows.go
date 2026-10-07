@@ -47,7 +47,7 @@ func (a *App) installSevenZ(localPath string) error {
 	if !isDirWritable(execDir) {
 		return fmt.Errorf("dir_not_writable")
 	}
-	base := filepath.Join(os.TempDir(), "snishaper-update")
+	base := filepath.Join(os.TempDir(), "flowweaver-update")
 	stage := filepath.Join(base, "stage")
 	os.RemoveAll(stage)
 	if err := os.MkdirAll(stage, 0755); err != nil {
@@ -97,11 +97,11 @@ $archive = '` + archive + `'
 $stage = '` + stage + `'
 $execDir = '` + execDir + `'
 $base = '` + base + `'
-$exe = Join-Path $execDir 'snishaper.exe'
+$exe = Join-Path $execDir 'flowweaver.exe'
 
 Write-Host '[1/5] 正在解压更新包...' -ForegroundColor Yellow
 & tar -xf $archive -C $stage | Out-Null
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'snishaper.exe'))) {
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'flowweaver.exe'))) {
     Write-Host '[错误] 解压更新包失败。' -ForegroundColor Red
     Read-Host '按回车键退出'
     exit 1
@@ -109,9 +109,9 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'snishaper.exe')))
 Write-Host '      解压完成。' -ForegroundColor Green
 
 Write-Host '[2/5] 正在停止旧进程...' -ForegroundColor Yellow
-Stop-Process -Name 'snishaper' -Force -ErrorAction SilentlyContinue
+Stop-Process -Name 'flowweaver' -Force -ErrorAction SilentlyContinue
 for ($i = 0; $i -lt 30; $i++) {
-    if (-not (Get-Process -Name 'snishaper' -ErrorAction SilentlyContinue)) { break }
+    if (-not (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 500
 }
 Write-Host '      旧进程已退出。' -ForegroundColor Green
@@ -120,7 +120,7 @@ Write-Host '[3/5] 正在覆盖程序文件...' -ForegroundColor Yellow
 $ok = $false
 for ($i = 0; $i -lt 10; $i++) {
     try {
-        Copy-Item -Path (Join-Path $stage 'snishaper.exe') -Destination $exe -Force -ErrorAction Stop
+        Copy-Item -Path (Join-Path $stage 'flowweaver.exe') -Destination $exe -Force -ErrorAction Stop
         $ok = $true
         break
     } catch { Start-Sleep -Seconds 1 }
@@ -135,7 +135,7 @@ Write-Host '      文件已更新（保留个人设置）。' -ForegroundColor G
 
 Write-Host '[4/5] 正在启动新版本...' -ForegroundColor Yellow
 for ($i = 0; $i -lt 30; $i++) {
-    if (Get-Process -Name 'snishaper' -ErrorAction SilentlyContinue) { break }
+    if (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue) { break }
     Start-Process -FilePath $exe
     Start-Sleep -Seconds 3
 }
@@ -144,7 +144,7 @@ Write-Host '[5/5] 清理临时文件...' -ForegroundColor Yellow
 Start-Sleep -Seconds 1
 Remove-Item -Path $base -Recurse -Force -ErrorAction SilentlyContinue
 
-if (Get-Process -Name 'snishaper' -ErrorAction SilentlyContinue) {
+if (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue) {
     Write-Host ''
     Write-Host '更新完成，FlowWeaver 已重新启动。' -ForegroundColor Green
     Start-Sleep -Seconds 2

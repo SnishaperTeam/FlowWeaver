@@ -5,11 +5,11 @@ version: '3'
 
 info:
   companyName: "dongle"
-  productName: "Snishaper"
-  productIdentifier: "dongle.Snishaper"
-  description: "SniShaper - Cloudflare IP Shaper"
-  copyright: "Copyright (c) Snishaper Team and JetCPP Team"
-  comments: "SniShaper desktop application"
+  productName: "FlowWeaver"
+  productIdentifier: "dongle.FlowWeaver"
+  description: "FlowWeaver - Cloudflare IP Shaper"
+  copyright: "Copyright (c) FlowWeaver Team and JetCPP Team"
+  comments: "FlowWeaver desktop application"
   version: "1.29.0"
 
 dev_mode:

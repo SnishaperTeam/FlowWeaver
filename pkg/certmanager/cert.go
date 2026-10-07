@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/common"
+	"flowweaver/common"
 )
 
 type CertManager struct {
@@ -49,8 +49,8 @@ func (cm *CertManager) generateCAUnlocked() error {
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			Organization: []string{"SniShaper"},
-			CommonName:   "SniShaper CA",
+			Organization: []string{"FlowWeaver"},
+			CommonName:   "FlowWeaver CA",
 		},
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),

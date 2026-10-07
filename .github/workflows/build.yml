@@ -112,14 +112,14 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          find build/bin -type f \( -name 'SniShaper' -o -name 'snishaper.exe' \) -print -exec file {} \;
+          find build/bin -type f \( -name 'FlowWeaver' -o -name 'flowweaver.exe' \) -print -exec file {} \;
 
       - name: Verify artifacts (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $machines = @{ 0x8664 = 'x64'; 0xAA64 = 'arm64'; 0x014C = 'x86' }
-          $bins = Get-ChildItem -Path build\bin -Recurse -Include 'snishaper.exe'
+          $bins = Get-ChildItem -Path build\bin -Recurse -Include 'flowweaver.exe'
           if (-not $bins) { Write-Host "::error::no binary produced"; exit 1 }
           $bins | ForEach-Object {
             $fs = [System.IO.File]::OpenRead($_.FullName)
@@ -162,11 +162,11 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $expected = @(
-            'build\bin\cli\Windows\x64\snishaper.exe',
-            'build\bin\cli\Windows\x86\snishaper.exe',
-            'build\bin\cli\Windows\arm64\snishaper.exe',
-            'build\bin\cli\Linux\x64\snishaper',
-            'build\bin\cli\Linux\arm64\snishaper'
+            'build\bin\cli\Windows\x64\flowweaver.exe',
+            'build\bin\cli\Windows\x86\flowweaver.exe',
+            'build\bin\cli\Windows\arm64\flowweaver.exe',
+            'build\bin\cli\Linux\x64\flowweaver',
+            'build\bin\cli\Linux\arm64\flowweaver'
           )
           foreach ($f in $expected) {
             if (-not (Test-Path $f)) { Write-Host "::error::missing $f"; exit 1 }
@@ -177,10 +177,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $v = (& .\build\bin\cli\Windows\x64\snishaper.exe version).Trim()
+          $v = (& .\build\bin\cli\Windows\x64\flowweaver.exe version).Trim()
           Write-Host "::notice::CLI version: $v"
           if (-not $v) { Write-Host "::error::empty CLI version"; exit 1 }
-          & .\build\bin\cli\Windows\x64\snishaper.exe help | Out-Null
+          & .\build\bin\cli\Windows\x64\flowweaver.exe help | Out-Null
           if ($LASTEXITCODE -ne 0) { Write-Host "::error::CLI help failed"; exit 1 }
 
   # ------------------------------------------------------------------
@@ -225,7 +225,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="build/bin/cli/Darwin/${{ matrix.arch }}/snishaper"
+          BIN="build/bin/cli/Darwin/${{ matrix.arch }}/flowweaver"
           file "$BIN"
           chmod +x "$BIN"
           V="$("$BIN" version)"

@@ -195,7 +195,7 @@ const About: React.FC = () => {
 
   const infoCards = [
     { icon: <Heart size={22} />, title: t('about.contributors'), value: 'mechrevo, dongzheyu, JetCPP-dongle', color: 'success.main', valueColor: 'text.primary' },
-    { icon: <Users size={22} />, title: t('about.maintainers'), value: 'JetCPP Team, SniShaper Team', color: 'warning.main', valueColor: 'text.primary' },
+    { icon: <Users size={22} />, title: t('about.maintainers'), value: 'JetCPP Team, FlowWeaver Team', color: 'warning.main', valueColor: 'text.primary' },
     { icon: <Globe size={22} />, title: t('about.website'), value: 'jetcpp.ccwu.cc', color: 'primary.main', valueColor: 'primary.main', onClick: handleOpenWebsite },
     { icon: <RefreshCcw size={22} />, title: 'GitHub', value: 'SnishaperTeam/FlowWeaver', color: 'text.primary', valueColor: 'text.primary', onClick: handleOpenGitHub },
     { icon: <Download size={22} />, title: t('about.latest_beta'), value: t('about.actions_build'), color: 'warning.main', valueColor: 'warning.main', onClick: handleOpenBeta },

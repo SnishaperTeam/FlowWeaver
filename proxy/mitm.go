@@ -25,7 +25,7 @@ import (
 
 	utls "github.com/refraction-networking/utls"
 
-	"snishaper/common"
+	"flowweaver/common"
 )
 
 func (p *ProxyServer) handleMITM(clientConn net.Conn, host string, rule Rule, dialCandidates []string, initialDialAddr string) {
@@ -235,7 +235,7 @@ func (p *ProxyServer) generateCert(host string, caCert *x509.Certificate, caKey 
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			Organization: []string{"SniShaper"},
+			Organization: []string{"FlowWeaver"},
 			CommonName:   host,
 		},
 		NotBefore: time.Now().Add(-24 * time.Hour),

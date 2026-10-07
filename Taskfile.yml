@@ -1,8 +1,8 @@
 version: '3'
 
 vars:
-  APP_NAME: "snishaper"
-  PRODUCT_NAME: "Snishaper"
+  APP_NAME: "flowweaver"
+  PRODUCT_NAME: "FlowWeaver"
   BIN_DIR: '{{.BIN_DIR | default "build/bin"}}'
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
@@ -18,9 +18,9 @@ vars:
   PLATFORM_DIR: '{{if eq .GOOS "windows"}}Windows{{else if eq .GOOS "linux"}}Linux{{else if eq .GOOS "darwin"}}Darwin{{else}}{{.GOOS}}{{end}}'
   ARCH_DIR: '{{if eq .TARGET_ARCH "amd64"}}x64{{else if eq .TARGET_ARCH "386"}}x86{{else if eq .TARGET_ARCH "arm64"}}arm64{{else}}{{.TARGET_ARCH}}{{end}}'
   GUI_BIN_DIR: '{{.BIN_DIR}}/gui/{{.PLATFORM_DIR}}/{{.ARCH_DIR}}'
-  # Same binary names as build.sh / build_windows.ps1: snishaper.exe on
-  # Windows, SniShaper on Linux.
-  GUI_BIN_NAME: '{{if eq .GOOS "linux"}}SniShaper{{else}}{{.APP_NAME}}{{if eq .GOOS "windows"}}.exe{{end}}{{end}}'
+  # Same binary names as build.sh / build_windows.ps1: flowweaver.exe on
+  # Windows, FlowWeaver on Linux.
+  GUI_BIN_NAME: '{{if eq .GOOS "linux"}}FlowWeaver{{else}}{{.APP_NAME}}{{if eq .GOOS "windows"}}.exe{{end}}{{end}}'
   GUI_BIN: '{{.GUI_BIN_DIR}}/{{.GUI_BIN_NAME}}'
 
   # Package.appxmanifest is the single version source. Values match the
@@ -34,7 +34,7 @@ vars:
     sh: grep -o '[0-9][0-9]*[.][0-9][0-9]*[.][0-9][0-9]*[.][0-9][0-9]*' Package.appxmanifest | head -1
 
   BUILD_TAGS: '{{.BASE_TAGS}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}}'
-  LD_FLAGS: '-s -w{{if eq .GOOS "windows"}} -H windowsgui{{end}}{{if .MANIFEST_VERSION}} -X snishaper/app.buildVersion={{.MANIFEST_VERSION}}{{end}}{{if .MANIFEST_CHANNEL}} -X snishaper/app.buildChannel={{.MANIFEST_CHANNEL}}{{end}}'
+  LD_FLAGS: '-s -w{{if eq .GOOS "windows"}} -H windowsgui{{end}}{{if .MANIFEST_VERSION}} -X flowweaver/app.buildVersion={{.MANIFEST_VERSION}}{{end}}{{if .MANIFEST_CHANNEL}} -X flowweaver/app.buildChannel={{.MANIFEST_CHANNEL}}{{end}}'
   GO_FLAGS: '-buildvcs=false{{if eq .DEV "true"}} -gcflags=all="-l"{{end}}'
 
 includes:

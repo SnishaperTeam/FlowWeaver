@@ -20,7 +20,7 @@ import (
 // and command line tools read the resulting system bundle, so nothing else has
 // to be written; Firefox keeps its own database and needs a manual import.
 
-const caAnchorFileName = "snishaper-ca.crt"
+const caAnchorFileName = "flowweaver-ca.crt"
 
 var caAnchorDirs = []string{
 	"/usr/local/share/ca-certificates",
@@ -40,7 +40,7 @@ var caPublishedDirs = []string{
 }
 
 func platformInstallHelp() string {
-	return "需要管理员权限：把 CA 复制到 /usr/local/share/ca-certificates/snishaper-ca.crt 后执行 update-ca-certificates" +
+	return "需要管理员权限：把 CA 复制到 /usr/local/share/ca-certificates/flowweaver-ca.crt 后执行 update-ca-certificates" +
 		"（Fedora 系为 /etc/pki/ca-trust/source/anchors + update-ca-trust，Arch 为 trust extract-compat）；" +
 		"Firefox 使用独立证书库，需在设置中手动导入"
 }
@@ -66,7 +66,7 @@ func platformListCerts() ([]InstalledCert, error) {
 
 	result := []InstalledCert{}
 	for _, cert := range certs {
-		if !isSniShaperCert(cert.Cert) {
+		if !isFlowWeaverCert(cert.Cert) {
 			continue
 		}
 		result = append(result, InstalledCert{
@@ -115,7 +115,7 @@ func platformUninstallCert(_, _, thumbprint string) error {
 
 	removed := 0
 	for _, dir := range caAnchorDirs {
-		matches, err := filepath.Glob(filepath.Join(dir, "snishaper*.crt"))
+		matches, err := filepath.Glob(filepath.Join(dir, "flowweaver*.crt"))
 		if err != nil {
 			continue
 		}
@@ -179,7 +179,7 @@ func collectCACerts() ([]systemCert, error) {
 			continue
 		}
 		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasPrefix(strings.ToLower(entry.Name()), "snishaper") {
+			if entry.IsDir() || !strings.HasPrefix(strings.ToLower(entry.Name()), "flowweaver") {
 				continue
 			}
 			for _, cert := range parsePEMFile(filepath.Join(dir, entry.Name())) {
@@ -226,15 +226,15 @@ func parsePEMFile(path string) []*x509.Certificate {
 	return certs
 }
 
-func isSniShaperCert(cert *x509.Certificate) bool {
+func isFlowWeaverCert(cert *x509.Certificate) bool {
 	if cert == nil {
 		return false
 	}
 	subject := strings.ToLower(cert.Subject.String())
-	if strings.Contains(subject, "snishaper") {
+	if strings.Contains(subject, "flowweaver") {
 		return true
 	}
-	return strings.Contains(strings.ToLower(cert.Issuer.String()), "snishaper")
+	return strings.Contains(strings.ToLower(cert.Issuer.String()), "flowweaver")
 }
 
 // anchorMatchesThumbprint accepts an anchor file whose certificate carries the

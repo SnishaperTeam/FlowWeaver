@@ -35,7 +35,7 @@ export const defaultTheme = createTheme({
   },
 });
 
-export const sniShaperTheme = createTheme({
+export const flowWeaverTheme = createTheme({
   ...base,
   colorSchemes: {
     light: {
@@ -147,7 +147,7 @@ export const graphiteTheme = createTheme({
 
 export const availableThemes = [
   { id: 'default', nameKey: 'settings.theme.default', theme: defaultTheme },
-  { id: 'sniShaper', nameKey: 'settings.theme.sniShaper', theme: sniShaperTheme },
+  { id: 'flowWeaver', nameKey: 'settings.theme.flowWeaver', theme: flowWeaverTheme },
   { id: 'forest', nameKey: 'settings.theme.forest', theme: forestTheme },
   { id: 'sunset', nameKey: 'settings.theme.sunset', theme: sunsetTheme },
   { id: 'ocean', nameKey: 'settings.theme.ocean', theme: oceanTheme },

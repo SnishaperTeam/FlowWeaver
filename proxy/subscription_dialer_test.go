@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // TestSubscriptionNodeCarriesTraffic proves a rule bound to a subscription node
@@ -62,7 +62,7 @@ func TestSubscriptionNodeCarriesTraffic(t *testing.T) {
 	if err != nil && !strings.Contains(err.Error(), "closed") && !strings.Contains(err.Error(), "EOF") {
 		t.Fatalf("read: %v", err)
 	}
-	if !strings.Contains(string(body), "SNISHAPER-SUB-TEST") {
+	if !strings.Contains(string(body), "FLOWWEAVER-SUB-TEST") {
 		t.Errorf("unexpected reply %q", body)
 	}
 

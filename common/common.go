@@ -81,8 +81,8 @@ func ResolveRuntimeFile(execDir, relPath string) string {
 	return fallback
 }
 
-// UserConfigDir returns the SniShaper-specific user config directory
-// (e.g. ~/.config/snishaper on Linux / XDG). Falls back to $HOME/.config
+// UserConfigDir returns the FlowWeaver-specific user config directory
+// (e.g. ~/.config/flowweaver on Linux / XDG). Falls back to $HOME/.config
 // when os.UserConfigDir fails.
 //
 // When the app runs elevated (root via sudo), os.UserConfigDir resolves to
@@ -110,7 +110,7 @@ func UserConfigDir() string {
 	if dir == "" {
 		dir = "./.config"
 	}
-	return filepath.Join(dir, "snishaper")
+	return filepath.Join(dir, "flowweaver")
 }
 
 func MapNAT64Addr(ipStr string, prefix string) (string, bool) {

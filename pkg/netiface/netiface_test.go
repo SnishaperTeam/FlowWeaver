@@ -101,7 +101,7 @@ func TestVirtualAdapterDemotedButUsable(t *testing.T) {
 func TestOwnTunnelAndLoopbackExcluded(t *testing.T) {
 	views := []interfaceView{
 		{Index: 1, Name: "Loopback Pseudo-Interface 1", Up: true, Loopback: true, Addresses: addrs("127.0.0.1", "::1")},
-		{Index: 33, Name: "SniShaper", Up: true, Addresses: addrs("198.18.0.1", "fd65:198:18::1")},
+		{Index: 33, Name: "FlowWeaver", Up: true, Addresses: addrs("198.18.0.1", "fd65:198:18::1")},
 		{Index: 27, Name: "WLAN", Up: true, Addresses: addrs("192.168.1.6")},
 	}
 
@@ -145,7 +145,7 @@ func TestExcludeAndForceInterface(t *testing.T) {
 // TestIsOwnTunnelMatchesWholeNames guards against substring matching, which
 // would misclassify unrelated adapters.
 func TestIsOwnTunnelMatchesWholeNames(t *testing.T) {
-	for _, name := range []string{"SniShaper", "snishaper", "singtun", "sing-tun", "SniShaper2"} {
+	for _, name := range []string{"FlowWeaver", "flowweaver", "singtun", "sing-tun", "FlowWeaver2"} {
 		if !IsOwnTunnel(name) {
 			t.Errorf("IsOwnTunnel(%q) = false, want true", name)
 		}

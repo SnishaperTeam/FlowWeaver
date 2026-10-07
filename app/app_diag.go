@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"snishaper/common"
-	"snishaper/core"
+	"flowweaver/common"
+	"flowweaver/core"
 )
 
 // DiagnosticCheck is one item of a self check.
@@ -133,7 +133,7 @@ func (a *App) ProxySelfCheck() ProxySelfCheckResult {
 	result.Checks = append(result.Checks, DiagnosticCheck{
 		Name:   "service",
 		OK:     serviceUp,
-		Detail: map[bool]string{true: "核心服务可达", false: "服务未运行，请先执行 snishaper start"}[serviceUp],
+		Detail: map[bool]string{true: "核心服务可达", false: "服务未运行，请先执行 flowweaver start"}[serviceUp],
 	})
 
 	httpPort := a.GetListenPort()

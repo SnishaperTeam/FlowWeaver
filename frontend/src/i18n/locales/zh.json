@@ -447,7 +447,7 @@
       "label": "配色方案",
       "desc": "选择界面配色方案（均支持深色/浅色模式）。",
       "default": "默认 MUI",
-      "sniShaper": "经典蓝",
+      "flowWeaver": "经典蓝",
       "forest": "森林绿",
       "sunset": "暖阳橙",
       "ocean": "海洋青",

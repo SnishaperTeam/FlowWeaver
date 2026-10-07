@@ -10,7 +10,7 @@ import (
 
 	"os"
 
-	"snishaper/app"
+	"flowweaver/app"
 )
 
 func opMode(args []string, out cmdOut) int {
@@ -326,7 +326,7 @@ func evolutionFinished(status map[string]interface{}) bool {
 // cliAutoStartEntry is the autostart entry name of the command line service. It
 // is deliberately different from the desktop app entry, so both can be
 // registered on the same machine without overwriting each other.
-const cliAutoStartEntry = "com.snishaper.cli"
+const cliAutoStartEntry = "com.flowweaver.cli"
 
 func opAutoStart(args []string, out cmdOut) int {
 	if len(args) == 0 {
@@ -399,7 +399,7 @@ func opAutoStart(args []string, out cmdOut) int {
 func autoStartCommand(a *app.App, withProxy bool) string {
 	exe, err := os.Executable()
 	if err != nil {
-		exe = "snishaper"
+		exe = "flowweaver"
 	}
 	command := quoteIfNeeded(exe) + " start"
 	if withProxy || a.GetAutoEnableProxyOnAutoStart() {

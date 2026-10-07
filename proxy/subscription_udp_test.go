@@ -11,7 +11,7 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // TestUDPThroughSubscriptionNode proves a UDP datagram reaches the destination
@@ -110,7 +110,7 @@ func TestUDPNilSafe(t *testing.T) {
 }
 
 func TestUDPSupportedByProtocol(t *testing.T) {
-	// Every protocol SniShaper can dial carries UDP as well.
+	// Every protocol FlowWeaver can dial carries UDP as well.
 	yes := []string{"ss", "vmess", "vless", "wireguard", "socks5", "SOCKS5", "socks", "trojan", "tuic", "hysteria2"}
 	for _, typ := range yes {
 		if !(subscription.Node{Type: typ}).UDPSupported() {

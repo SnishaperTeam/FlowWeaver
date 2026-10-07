@@ -1,7 +1,7 @@
 //go:build linux
 
 // Package platform provides Linux-native system primitives that the TUN,
-// routing and DNS layers of SniShaper are built on. It is the single
+// routing and DNS layers of FlowWeaver are built on. It is the single
 // platform layer of the project: everything here targets Linux only.
 //
 // The TUN data plane used by the app is sing-tun, which internally creates
@@ -28,7 +28,7 @@ import (
 func init() {
 	// Can only ever build and run on Linux.
 	if runtime.GOOS != "linux" {
-		panic("snishaper/pkg/platform must only be built for linux")
+		panic("flowweaver/pkg/platform must only be built for linux")
 	}
 }
 

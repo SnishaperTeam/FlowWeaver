@@ -5,7 +5,7 @@ import (
 	"log"
 	"path/filepath"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // subscriptionStorePath resolves the on-disk location of the subscription store.

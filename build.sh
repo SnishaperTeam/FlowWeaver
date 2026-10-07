@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 #
-# build.sh — SniShaper multi-platform / multi-architecture build script
+# build.sh — FlowWeaver multi-platform / multi-architecture build script
 #            (Linux, macOS, WSL). PowerShell twin: build_windows.ps1
 #
 # ---------------------------------------------------------------------------
 # OUTPUT LAYOUT
 # ---------------------------------------------------------------------------
-#   build/bin/cli/Windows/{x64,x86,arm64}/snishaper.exe
-#   build/bin/cli/Linux/{x64,arm64}/snishaper
-#   build/bin/cli/Darwin/{x64,arm64}/snishaper
-#   build/bin/gui/Windows/{x64,x86,arm64}/snishaper.exe
-#   build/bin/gui/Linux/{x64,arm64}/SniShaper
+#   build/bin/cli/Windows/{x64,x86,arm64}/flowweaver.exe
+#   build/bin/cli/Linux/{x64,arm64}/flowweaver
+#   build/bin/cli/Darwin/{x64,arm64}/flowweaver
+#   build/bin/gui/Windows/{x64,x86,arm64}/flowweaver.exe
+#   build/bin/gui/Linux/{x64,arm64}/FlowWeaver
 #
 #   Every target directory also receives the runtime seed folders config/ and
 #   rules/. The GUI is never built for Darwin (Wails desktop shell supports
@@ -76,9 +76,9 @@
 # ---------------------------------------------------------------------------
 # VERIFICATION
 # ---------------------------------------------------------------------------
-#   file build/bin/cli/Linux/arm64/snishaper     -> ELF aarch64
-#   file build/bin/gui/Linux/arm64/SniShaper     -> ELF aarch64
-#   file build/bin/cli/Darwin/arm64/snishaper    -> Mach-O arm64
+#   file build/bin/cli/Linux/arm64/flowweaver     -> ELF aarch64
+#   file build/bin/gui/Linux/arm64/FlowWeaver     -> ELF aarch64
+#   file build/bin/cli/Darwin/arm64/flowweaver    -> Mach-O arm64
 #
 set -euo pipefail
 
@@ -96,7 +96,7 @@ msg_en() {
     case "$1" in
         LangTitle)      printf '%s' 'Please select your language / Выберите язык' ;;
         LangPrompt)     printf '%s' 'Enter your choice (1=English, 2=Chinese, 3=Russian)' ;;
-        MenuTitle)      printf '%s' '       SniShaper Build Menu' ;;
+        MenuTitle)      printf '%s' '       FlowWeaver Build Menu' ;;
         DepPrompt)      printf '%s' 'Install frontend npm dependencies? [y/N]' ;;
         TypeTitle)      printf '%s' 'Build type (comma separated, empty = all):' ;;
         TypeOpt1)       printf '%s' '  1) CLI  (headless, cross-platform)' ;;
@@ -148,7 +148,7 @@ msg_cn() {
     case "$1" in
         LangTitle)      printf '%s' '请选择语言' ;;
         LangPrompt)     printf '%s' '请输入选择 (1=English, 2=中文, 3=Русский)' ;;
-        MenuTitle)      printf '%s' '       SniShaper 构建菜单' ;;
+        MenuTitle)      printf '%s' '       FlowWeaver 构建菜单' ;;
         DepPrompt)      printf '%s' '是否安装前端 npm 依赖？[y/N]' ;;
         TypeTitle)      printf '%s' '请选择构建类型（逗号分隔，留空=全部）：' ;;
         TypeOpt1)       printf '%s' '  1) CLI（headless，跨平台）' ;;
@@ -200,7 +200,7 @@ msg_ru() {
     case "$1" in
         LangTitle)      printf '%s' 'Выберите язык' ;;
         LangPrompt)     printf '%s' 'Введите выбор (1=English, 2=中文, 3=Русский)' ;;
-        MenuTitle)      printf '%s' '       Меню сборки SniShaper' ;;
+        MenuTitle)      printf '%s' '       Меню сборки FlowWeaver' ;;
         DepPrompt)      printf '%s' 'Установить npm зависимости фронтенда? [y/N]' ;;
         TypeTitle)      printf '%s' 'Тип сборки (через запятую, пусто = все):' ;;
         TypeOpt1)       printf '%s' '  1) CLI  (headless, кроссплатформенный)' ;;
@@ -793,12 +793,12 @@ build_target() {
     _goos="$_plat"
     _goarch="$(goarch_of "$_arch")"
     _dir="build/bin/${_type}/$(platform_dir "$_plat")/${_arch}"
-    _bin="snishaper"
+    _bin="flowweaver"
     if [ "$_goos" = "windows" ]; then
-        _bin="snishaper.exe"
+        _bin="flowweaver.exe"
     fi
     if [ "$_type" = "gui" ] && [ "$_goos" = "linux" ]; then
-        _bin="SniShaper"
+        _bin="FlowWeaver"
     fi
     _out="${_dir}/${_bin}"
 
@@ -842,10 +842,10 @@ build_target() {
         _ldflags="$_ldflags -H windowsgui"
     fi
     if [ -n "$MANIFEST_VERSION" ]; then
-        _ldflags="$_ldflags -X snishaper/app.buildVersion=$MANIFEST_VERSION"
+        _ldflags="$_ldflags -X flowweaver/app.buildVersion=$MANIFEST_VERSION"
     fi
     if [ -n "$MANIFEST_CHANNEL" ]; then
-        _ldflags="$_ldflags -X snishaper/app.buildChannel=$MANIFEST_CHANNEL"
+        _ldflags="$_ldflags -X flowweaver/app.buildChannel=$MANIFEST_CHANNEL"
     fi
 
     # ---- compile ------------------------------------------------------------
@@ -920,7 +920,7 @@ fi
 
 log ""
 log "=========================================================="
-log " SniShaper build"
+log " FlowWeaver build"
 log " $(m HostInfo "$HOST_OS" "$HOST_ARCH" "$CI_MODE" "$CROSS_GUI")"
 log " $(m VersionInfo "$MANIFEST_VERSION" "$MANIFEST_CHANNEL")"
 log "=========================================================="

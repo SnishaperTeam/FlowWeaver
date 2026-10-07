@@ -18,10 +18,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"snishaper/pkg/cfpool"
-	"snishaper/pkg/dohresolver"
-	"snishaper/pkg/netiface"
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/cfpool"
+	"flowweaver/pkg/dohresolver"
+	"flowweaver/pkg/netiface"
+	"flowweaver/pkg/subscription"
 
 	"github.com/miekg/dns"
 	utls "github.com/refraction-networking/utls"
@@ -1347,7 +1347,7 @@ func fetchECHDirect(ctx context.Context, domain, dohURL string) ([]byte, error) 
 	req.ContentLength = int64(len(buf))
 	req.Header.Set("Content-Type", "application/dns-message")
 	req.Header.Set("Accept", "application/dns-message")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 SNIShaper/1.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 FlowWeaver/1.0")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)

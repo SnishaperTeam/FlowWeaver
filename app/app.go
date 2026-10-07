@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/common"
-	"snishaper/core"
-	"snishaper/evolution"
-	"snishaper/pkg/certmanager"
-	"snishaper/proxy"
+	"flowweaver/common"
+	"flowweaver/core"
+	"flowweaver/evolution"
+	"flowweaver/pkg/certmanager"
+	"flowweaver/proxy"
 )
 
 // UIAdapter is an optional event sink used by headless builds (the CLI /

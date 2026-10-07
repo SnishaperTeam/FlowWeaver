@@ -126,8 +126,8 @@ func commandCatalog() []commandGroup {
 
 func printHelpText(out cmdOut) {
 	out("用法:")
-	out("  snishaper                启动交互面板（TUI）")
-	out("  snishaper <命令> [参数]  执行单条命令，见下方命令目录")
+	out("  flowweaver                启动交互面板（TUI）")
+	out("  flowweaver <命令> [参数]  执行单条命令，见下方命令目录")
 	out("")
 	out("命令目录:")
 	for _, group := range commandCatalog() {
@@ -139,6 +139,6 @@ func printHelpText(out cmdOut) {
 	}
 	out("")
 	out("写操作大多接受 JSON 参数，例如:")
-	out(`  snishaper sites add '{"name":"示例","mode":"direct","domains":["a.com"]}'`)
-	out(`  snishaper dns add '{"name":"CF","url":"https://1.1.1.1/dns-query","enabled":true}'`)
+	out(`  flowweaver sites add '{"name":"示例","mode":"direct","domains":["a.com"]}'`)
+	out(`  flowweaver dns add '{"name":"CF","url":"https://1.1.1.1/dns-query","enabled":true}'`)
 }

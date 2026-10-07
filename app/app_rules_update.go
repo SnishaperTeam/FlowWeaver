@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"snishaper/proxy"
+	"flowweaver/proxy"
 )
 
 const rulesRemoteURL = "https://raw.githubusercontent.com/" + githubRepo + "/main/rules/config.json"
@@ -65,10 +65,10 @@ func (a *App) syncRemoteRules() RulesUpdateResult {
 	}
 
 	// 校验下载内容与官方 GitHub API 报告的 git blob SHA 一致，
-	// 防止被篡改的镜像注入规则。SNISHAPER_ALLOW_UNVERIFIED_RULES=1
+	// 防止被篡改的镜像注入规则。FLOWWEAVER_ALLOW_UNVERIFIED_RULES=1
 	// 是给离线环境留的显式逃生舱。
 	if rulesIntegrityBypassEnabled() {
-		a.appendLog("[rules-update] WARNING: integrity verification bypassed via SNISHAPER_ALLOW_UNVERIFIED_RULES")
+		a.appendLog("[rules-update] WARNING: integrity verification bypassed via FLOWWEAVER_ALLOW_UNVERIFIED_RULES")
 	} else {
 		expectedSHA, shaErr := a.fetchOfficialRulesBlobSHA()
 		if shaErr != nil {
@@ -143,7 +143,7 @@ func (a *App) syncRemoteRules() RulesUpdateResult {
 // rulesIntegrityBypassEnabled reports whether the user explicitly opted out of
 // rules integrity verification.
 func rulesIntegrityBypassEnabled() bool {
-	return os.Getenv("SNISHAPER_ALLOW_UNVERIFIED_RULES") == "1"
+	return os.Getenv("FLOWWEAVER_ALLOW_UNVERIFIED_RULES") == "1"
 }
 
 // rulesBlobSHA computes the git blob hash of the rules file:

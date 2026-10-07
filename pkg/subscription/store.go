@@ -511,7 +511,7 @@ func Fetch(url string) ([]byte, UserInfo, error) {
 	if err != nil {
 		return nil, UserInfo{}, err
 	}
-	req.Header.Set("User-Agent", "clash-verge/v2.0 SniShaper")
+	req.Header.Set("User-Agent", "clash-verge/v2.0 FlowWeaver")
 	req.Header.Set("Accept", "*/*")
 
 	resp, err := client.Do(req)

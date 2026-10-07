@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // SubscriptionInfo is the frontend-facing shape of a subscription.

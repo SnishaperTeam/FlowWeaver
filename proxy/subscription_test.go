@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 // TestSubscriptionRulesDriveMatchRule proves that rules produced from a Clash

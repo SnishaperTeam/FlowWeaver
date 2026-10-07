@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"snishaper/pkg/subscription"
+	"flowweaver/pkg/subscription"
 )
 
 type nodeSpec struct {
