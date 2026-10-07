@@ -20,8 +20,8 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     env:
-      RELEASE_BOT_NAME: SnishaperTeam-ReleaseBot
-      RELEASE_BOT_EMAIL: youmao2023@outlook.com
+      RELEASE_BOT_NAME: dongle-china
+      RELEASE_BOT_EMAIL: dongle2823@163.com
       SIGNING_READY: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
     steps:
       - name: Checkout
