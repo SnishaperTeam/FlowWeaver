@@ -250,6 +250,9 @@ func (h *Handler) NewConnectionEx(ctx context.Context, conn net.Conn, source M.S
 
 	// 浏览器可能用 DoH/系统缓存解析出真实 IP（绕过 TUN 的 fake-ip 劫持），
 	// 导致规则按域名匹配失效。此时从 TLS ClientHello 嗅探 SNI 重建域名。
+	// 注意：只嗅探、绝不改写 ClientHello——TLS 1.2/1.3 的转录哈希覆盖整个
+	// ClientHello，传输途中改任何字节都会导致两端密钥不一致（bad record MAC）。
+	// SNI 伪装只能在 TLS 端点侧做（MITM 出站重放，见 proxy/mitm.go）。
 	if net.ParseIP(targetHost) != nil {
 		if sni, c := h.sniffTLSSNI(conn); sni != "" {
 			h.tracef("[sing-tun] SNI sniffed: %s (was IP %s)", sni, targetHost)
