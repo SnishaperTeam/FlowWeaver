@@ -4,6 +4,7 @@
 - Build backend only: `.\build_windows.ps1 -Build backend -Silent`
 - Build frontend only: `.\build_windows.ps1 -Build frontend -Silent`
 - Build + MSIX: `.\build_windows.ps1 -Build all -Silent -BuildMsix`
+- Headless CLI (linux/WSL TUN test): `$env:GOOS='linux'; $env:CGO_ENABLED='0'; go build -tags "headless with_gvisor" -o build/bin/flowweaver-linux ./cli` (must include `with_gvisor`, otherwise TUN fails with "gVisor is not included in this build") then run in WSL2 as root: `./flowweaver start && ./flowweaver tun on`, test with `curl -k -m 15 <url>`, cleanup `./flowweaver tun off && ./flowweaver stop`; note: `stop` is async, so wait for processes to fully exit (`pgrep -x flowweaver`) before the next `start` — core RPC is token-isolated (a stale instance can no longer kill a newly started core), but a zero-gap restart can still race the TUN device teardown and leave the data plane degraded
 - Frontend dev: `cd frontend && npm run dev`
 - Frontend install: `cd frontend && npm install`
 - Go mod tidy: `go mod tidy`
