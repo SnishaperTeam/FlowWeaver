@@ -128,7 +128,7 @@ const Proxies: React.FC = () => {
           <Box sx={{ p: 1.25, borderRadius: 1.5, border: 1, color: 'primary.main', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1), borderColor: (theme) => alpha(theme.palette.primary.main, 0.1), display: 'flex' }}>
             <Shield size={20} />
           </Box>
-          <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: '-0.02em' }}>{t('proxies.title')}</Typography>
+          <Typography variant="h5" data-tut="proxy-groups" sx={{ fontWeight: 700, letterSpacing: '-0.02em' }}>{t('proxies.title')}</Typography>
         </Box>
       </Box>
 

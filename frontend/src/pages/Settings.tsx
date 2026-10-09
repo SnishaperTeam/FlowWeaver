@@ -706,7 +706,7 @@ const Settings: React.FC<SettingsProps> = ({ cache, onCacheUpdate, currentThemeI
             </Box>
           </Box>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
+          <Box data-tut="tun-section" sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1.5 }}>
             <SectionHeader icon={<Wifi size={18} />} label={t('settings.tabs.tun')} />
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

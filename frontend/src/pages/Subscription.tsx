@@ -248,6 +248,7 @@ const Subscription: React.FC = () => {
                 sx={{ flex: '1 1 14rem', '& input': { fontSize: '0.8rem' } }}
               />
               <TextField
+                data-tut="sub-input"
                 size="small"
                 label={t('subscriptions.url')}
                 value={url}
