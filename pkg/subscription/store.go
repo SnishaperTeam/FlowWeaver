@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -43,11 +44,12 @@ type Entry struct {
 
 // Store persists subscriptions and tracks the active one.
 type Store struct {
-	mu       sync.RWMutex
-	path     string
-	entries  []*Entry
-	activeID string
-	logf     func(string)
+	mu         sync.RWMutex
+	path       string
+	entries    []*Entry
+	activeID   string
+	logf       func(string)
+	fetchProxy string
 }
 
 type storeFile struct {
@@ -199,6 +201,22 @@ func (s *Store) SetActive(id string) error {
 	return s.saveLocked()
 }
 
+// SetFetchProxy routes subscription downloads through the given HTTP proxy
+// first (the running local proxy), falling back to direct. Empty means direct
+// only. Subscription provider domains are often unreachable directly; Clash
+// clients update through their own running proxy, hence the same approach.
+func (s *Store) SetFetchProxy(proxyURL string) {
+	s.mu.Lock()
+	s.fetchProxy = proxyURL
+	s.mu.Unlock()
+}
+
+func (s *Store) fetchProxyValue() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.fetchProxy
+}
+
 // Add registers a new subscription by downloading and parsing it.
 func (s *Store) Add(name, url string) (*Entry, error) {
 	name = strings.TrimSpace(name)
@@ -210,7 +228,7 @@ func (s *Store) Add(name, url string) (*Entry, error) {
 		return nil, errors.New("subscription url must start with http:// or https://")
 	}
 
-	payload, userInfo, err := Fetch(url)
+	payload, userInfo, err := Fetch(url, s.fetchProxyValue())
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +285,7 @@ func (s *Store) Update(id string) (*Entry, error) {
 		return entry, nil
 	}
 
-	payload, userInfo, err := Fetch(url)
+	payload, userInfo, err := Fetch(url, s.fetchProxyValue())
 	if err != nil {
 		s.markError(id, err)
 		return nil, err
@@ -499,15 +517,41 @@ func (s *Store) SetGroupsForTest(id string, groups []Group) {
 }
 
 // Fetch downloads a subscription payload and reads the quota header if present.
-func Fetch(url string) ([]byte, UserInfo, error) {
-	client := &http.Client{
+// When proxyURL is non-empty the request is attempted through that HTTP proxy
+// first, with a direct connection as fallback.
+func Fetch(rawURL string, proxyURL string) ([]byte, UserInfo, error) {
+	clients := make([]*http.Client, 0, 2)
+	if proxyURL != "" {
+		if pu, err := neturl.Parse(proxyURL); err == nil {
+			clients = append(clients, &http.Client{
+				Timeout: 30 * time.Second,
+				Transport: &http.Transport{
+					Proxy:           http.ProxyURL(pu),
+					TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				},
+			})
+		}
+	}
+	clients = append(clients, &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		},
-	}
+	})
 
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	var errs []error
+	for _, client := range clients {
+		payload, userInfo, err := fetchWith(client, rawURL)
+		if err == nil {
+			return payload, userInfo, nil
+		}
+		errs = append(errs, err)
+	}
+	return nil, UserInfo{}, errors.Join(errs...)
+}
+
+func fetchWith(client *http.Client, rawURL string) ([]byte, UserInfo, error) {
+	req, err := http.NewRequest(http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, UserInfo{}, err
 	}

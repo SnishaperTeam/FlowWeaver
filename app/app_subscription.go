@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"strconv"
 	"strings"
@@ -111,8 +112,25 @@ func (a *App) GetSubscriptions() []SubscriptionInfo {
 	return out
 }
 
+// syncFetchProxy points subscription downloads at the running local proxy so
+// subscription domains that are unreachable directly still update (Clash
+// updates through its own running proxy the same way). Direct stays as the
+// fallback inside Fetch.
+func (a *App) syncFetchProxy() {
+	store := a.ruleManager.GetSubscriptionStore()
+	if store == nil {
+		return
+	}
+	if a.IsProxyRunning() {
+		store.SetFetchProxy(fmt.Sprintf("http://127.0.0.1:%d", a.GetListenPort()))
+	} else {
+		store.SetFetchProxy("")
+	}
+}
+
 // AddSubscription downloads and registers a Clash subscription.
 func (a *App) AddSubscription(name, url string) (SubscriptionInfo, error) {
+	a.syncFetchProxy()
 	entry, err := a.ruleManager.AddSubscription(name, url)
 	if err != nil {
 		return SubscriptionInfo{}, err
@@ -123,6 +141,7 @@ func (a *App) AddSubscription(name, url string) (SubscriptionInfo, error) {
 
 // UpdateSubscription re-downloads a subscription.
 func (a *App) UpdateSubscription(id string) (SubscriptionInfo, error) {
+	a.syncFetchProxy()
 	entry, err := a.ruleManager.UpdateSubscription(id)
 	if err != nil {
 		return SubscriptionInfo{}, err
