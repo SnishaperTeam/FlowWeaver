@@ -8,7 +8,7 @@ info:
   productName: "FlowWeaver"
   productIdentifier: "dongle.FlowWeaver"
   description: "FlowWeaver - Cloudflare IP Shaper"
-  copyright: "Copyleft（著佐权） (c) FlowWeaver Team and JetCPP Team"
+  copyright: "Copyleft 🄯 © FlowWeaver Team and JetCPP Team. All rights reserved, except as granted under the AGPLv3."
   comments: "FlowWeaver desktop application"
   version: "1.29.0"
 
