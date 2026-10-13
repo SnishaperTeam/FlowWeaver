@@ -42,6 +42,7 @@ type RuleManager struct {
 	language             string
 	theme                string
 	appearanceMode       string
+	fragConfig           FragmentConfig
 	migrationEnabled     bool
 	migrationServer      string
 	updateChannel        string
@@ -320,6 +321,7 @@ func (rm *RuleManager) loadSettingsConfig() error {
 	// 2. Override with JSON values if they exist
 	rm.cloudflareConfig = config.CloudflareConfig
 	rm.tunConfig = config.TUN
+	rm.fragConfig = config.Fragment
 
 	if config.ListenPort != "" {
 		rm.listenPort = config.ListenPort
@@ -493,6 +495,7 @@ func (rm *RuleManager) buildRules() {
 				CertVerify:         sg.CertVerify,
 				NAT64Enabled:       sg.NAT64Enabled,
 				NAT64ProfileID:     sg.NAT64ProfileID,
+				Frag:               sg.Frag,
 			}
 			rm.rules = append(rm.rules, rule)
 		}
@@ -542,6 +545,19 @@ func (rm *RuleManager) GetCloseToTray() bool {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 	return rm.closeToTray
+}
+
+func (rm *RuleManager) GetFragmentConfig() FragmentConfig {
+	rm.mu.RLock()
+	defer rm.mu.RUnlock()
+	return normalizeFragmentConfig(rm.fragConfig)
+}
+
+func (rm *RuleManager) SetFragmentConfig(cfg FragmentConfig) error {
+	rm.mu.Lock()
+	rm.fragConfig = normalizeFragmentConfig(cfg)
+	rm.mu.Unlock()
+	return rm.saveSettingsConfig()
 }
 
 func (rm *RuleManager) SetCloseToTray(enabled bool) error {
@@ -876,6 +892,7 @@ func (rm *RuleManager) saveSettingsConfig() error {
 	migrationEnabled := rm.migrationEnabled
 	cloudflareConfig := rm.cloudflareConfig
 	tunConfig := normalizeTUNConfig(rm.tunConfig)
+	fragConfig := normalizeFragmentConfig(rm.fragConfig)
 
 	settings := SettingsConfig{
 		ListenPort: listenPort,
@@ -890,6 +907,7 @@ func (rm *RuleManager) saveSettingsConfig() error {
 		CloudflareConfig:              cloudflareConfig,
 		AutoRouting:                   rm.autoRoutingConfig,
 		TUN:                           tunConfig,
+		Fragment:                      fragConfig,
 		Language:                      rm.language,
 		Theme:                         rm.theme,
 		AppearanceMode:                rm.appearanceMode,

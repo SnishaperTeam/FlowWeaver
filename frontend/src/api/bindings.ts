@@ -25,6 +25,9 @@ export const SetAppearanceMode = (mode: string) => appCall('SetAppearanceMode', 
 export const GetTUNConfig = () => appCall('GetTUNConfig');
 export const UpdateTUNConfig = (cfg: any) => appCall('UpdateTUNConfig', cfg);
 export const GetTUNStatus = () => appCall('GetTUNStatus');
+export const GetFragmentConfig = () => appCall('GetFragmentConfig');
+export const SetFragmentConfig = (cfg: any) => appCall('SetFragmentConfig', cfg);
+export const ResetFragmentConfig = () => appCall('ResetFragmentConfig');
 export const GetNetworkInterfaces = () => appCall('GetNetworkInterfaces');
 export const SetTUNInterface = (name: string) => appCall('SetTUNInterface', name);
 export const SetTUNInterfaceExclude = (exclude: string) => appCall('SetTUNInterfaceExclude', exclude);
