@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Box, ListItem, ListItemButton, alpha } from '@mui/material';
-import { CheckCircle, Activity } from '../lib/icons';
+import React from 'react';
+import { Box, ListItem, ListItemButton, CircularProgress, alpha } from '@mui/material';
+import { CheckCircle } from '../lib/icons';
 import { useTranslation } from '../i18n/I18nContext';
+import { latencyColor } from '../lib/utils';
 
 export interface ProxyNode {
   name: string;
@@ -21,10 +22,21 @@ export interface ProxyGroup {
   selected?: string;
 }
 
+export type TestStatus = 'success' | 'timeout' | 'error';
+
+// One node's latest probe outcome. Results live in a per-node map on the page
+// so testing one node never clears another node's result.
+export interface NodeTestResult {
+  latency: number | null;
+  status: TestStatus;
+  timestamp: number;
+  error?: string;
+}
+
 interface Props {
   node: ProxyNode;
   selected: boolean;
-  delay?: number;
+  result?: NodeTestResult;
   testing: boolean;
   onSelect: () => void;
   onTest: () => void;
@@ -51,19 +63,18 @@ const TypeBox: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </Box>
 );
 
-const delayColor = (delay: number): 'success.main' | 'warning.main' | 'error.main' => {
-  if (delay < 0) return 'error.main';
-  if (delay < 300) return 'success.main';
-  if (delay < 1000) return 'warning.main';
-  return 'error.main';
-};
-
 // ProxyNodeRow mirrors the Clash Verge proxy item: fixed 40px rows, a 3px
 // left accent for the active node, type capsules and a delay/check affordance
 // that swaps on hover.
-const ProxyNodeRow: React.FC<Props> = ({ node, selected, delay, testing, onSelect, onTest }) => {
+const ProxyNodeRow: React.FC<Props> = ({ node, selected, result, testing, onSelect, onTest }) => {
   const { t } = useTranslation();
-  const hasDelay = typeof delay === 'number' && delay > 0;
+  const hasResult = result?.status === 'success' && typeof result.latency === 'number' && result.latency !== null;
+  const statusText =
+    result?.status === 'timeout'
+      ? t('common.timeout')
+      : result?.status === 'error'
+        ? t('common.failed')
+        : '';
   // Nodes whose protocol cannot be dialled stay visible but inert, so the user
   // can see what the provider offers without being able to pick a dead node.
   const usable = node.supported !== false;
@@ -102,6 +113,7 @@ const ProxyNodeRow: React.FC<Props> = ({ node, selected, delay, testing, onSelec
         <Box sx={{ minWidth: 0, flexGrow: 1, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.25 }}>
           <Box
             component="span"
+            title={result?.error || undefined}
             sx={{
               fontSize: 14,
               color: 'text.primary',
@@ -131,7 +143,7 @@ const ProxyNodeRow: React.FC<Props> = ({ node, selected, delay, testing, onSelec
               onTest();
             }}
             sx={{
-              display: hasDelay ? 'none' : 'block',
+              display: hasResult || testing ? 'none' : 'block',
               px: 0.75,
               py: 0.25,
               borderRadius: 0.5,
@@ -141,13 +153,33 @@ const ProxyNodeRow: React.FC<Props> = ({ node, selected, delay, testing, onSelec
               cursor: 'pointer',
               '&:hover': { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15) },
               '.Mui-selected &': { display: 'none' },
-              '.MuiListItemButton-root:hover > &': { display: 'block' },
+              '.MuiListItemButton-root:hover > &': { display: testing ? 'none' : 'block' },
             }}
           >
-            {testing ? t('subscriptions.testing') : t('subscriptions.check')}
+            {t('subscriptions.check')}
           </Box>
 
-          {hasDelay && (
+          {testing && (
+            <Box
+              component="span"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.5,
+                px: 0.75,
+                py: 0.25,
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'text.secondary',
+                '.MuiListItemButton-root:hover > &': { display: 'none' },
+              }}
+            >
+              <CircularProgress size={11} thickness={5} />
+              {t('subscriptions.testing')}
+            </Box>
+          )}
+
+          {!testing && hasResult && (
             <Box
               component="span"
               onClick={(e: React.MouseEvent) => {
@@ -161,21 +193,44 @@ const ProxyNodeRow: React.FC<Props> = ({ node, selected, delay, testing, onSelec
                 borderRadius: 0.5,
                 fontSize: 12,
                 fontWeight: 700,
-                color: delayColor(delay as number),
+                color: latencyColor(result?.latency ?? null),
                 cursor: 'pointer',
                 '&:hover': { bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15) },
                 '.MuiListItemButton-root:hover > &': { display: 'none' },
               }}
             >
-              {delay} ms
+              {result?.latency} ms
             </Box>
           )}
 
-          {selected && !hasDelay && !testing && (
-            <CheckCircle size={16} aria-hidden style={{ color: 'var(--mui-palette-primary-main)' }} />
+          {!testing && !hasResult && statusText && (
+            <Box
+              component="span"
+              onClick={(e: React.MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTest();
+              }}
+              sx={{
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 0.5,
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'error.main',
+                bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+                cursor: 'pointer',
+                '&:hover': { bgcolor: (theme) => alpha(theme.palette.error.main, 0.2) },
+                '.MuiListItemButton-root:hover > &': { display: 'none' },
+              }}
+            >
+              {statusText}
+            </Box>
           )}
 
-          {testing && <Activity size={14} aria-hidden style={{ marginLeft: 4 }} />}
+          {selected && !hasResult && !testing && !statusText && (
+            <CheckCircle size={16} aria-hidden style={{ color: 'var(--mui-palette-primary-main)' }} />
+          )}
           </>
           )}
         </Box>

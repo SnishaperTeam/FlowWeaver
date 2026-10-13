@@ -9,7 +9,14 @@ import {
   ShieldAlert,
   Search,
   Download,
-  Lock
+  Lock,
+  Activity,
+  RefreshCw,
+  GoogleIcon,
+  GithubIcon,
+  YoutubeIcon,
+  XBrandIcon,
+  MusicNoteIcon
 } from '../lib/icons';
 import { alpha } from '@mui/material/styles';
 import {
@@ -32,11 +39,12 @@ import {
   GetCAInstallStatus,
   OpenCAFile,
   InstallCA,
+  TestServiceLatency,
   EventsOn
 } from '../api/bindings';
 import Modal from '../components/Modal';
 import { toast } from '../lib/toast';
-import { formatSpeed, extractErrorMessage } from '../lib/utils';
+import { formatSpeed, extractErrorMessage, isTimeoutError, runWithConcurrency, latencyColor } from '../lib/utils';
 import { useTranslation } from '../i18n/I18nContext';
 import {
   Box,
@@ -49,7 +57,207 @@ import {
   ListSubheader,
   Tooltip,
   CircularProgress,
+  IconButton,
 } from '@mui/material';
+
+// Service latency probes. Each request is routed through the running local
+// proxy on the Go side, so the number reflects the real exit path. Results
+// are stored per service and never overwrite each other.
+const SERVICE_TEST_CONCURRENCY = 5;
+
+type ServiceTestStatus = 'success' | 'timeout' | 'error';
+
+interface ServiceTestResult {
+  latency: number | null;
+  status: ServiceTestStatus;
+  timestamp: number;
+  error?: string;
+}
+
+interface ServiceDef {
+  id: string;
+  name: string;
+  url: string;
+  Icon: React.FC<{ size?: number | string }>;
+  tint: string;
+}
+
+const SERVICES: ServiceDef[] = [
+  { id: 'google', name: 'Google', url: 'https://www.google.com/generate_204', Icon: GoogleIcon, tint: '#4285F4' },
+  { id: 'github', name: 'GitHub', url: 'https://github.com', Icon: GithubIcon, tint: '#8957E5' },
+  { id: 'tiktok', name: 'TikTok', url: 'https://www.tiktok.com', Icon: MusicNoteIcon, tint: '#FE2C55' },
+  { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com', Icon: YoutubeIcon, tint: '#FF0000' },
+  { id: 'x', name: 'X', url: 'https://x.com', Icon: XBrandIcon, tint: '#e7e9ea' },
+];
+
+const statusColor = (status: ServiceTestStatus): string =>
+  status === 'success' ? 'success.main' : 'error.main';
+
+const formatClock = (ts: number): string => new Date(ts).toLocaleTimeString();
+
+const ServiceLatencyPanel: React.FC = () => {
+  const { t } = useTranslation();
+  const [results, setResults] = useState<Record<string, ServiceTestResult>>({});
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [batch, setBatch] = useState<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const runServiceTest = async (def: ServiceDef, silent: boolean) => {
+    setTesting((prev) => ({ ...prev, [def.id]: true }));
+    try {
+      const ms = await TestServiceLatency(def.url);
+      if (!mountedRef.current) return;
+      setResults((prev) => ({
+        ...prev,
+        [def.id]: { latency: ms, status: 'success', timestamp: Date.now() },
+      }));
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = extractErrorMessage(err);
+      setResults((prev) => ({
+        ...prev,
+        [def.id]: {
+          latency: null,
+          status: isTimeoutError(msg) ? 'timeout' : 'error',
+          timestamp: Date.now(),
+          error: msg,
+        },
+      }));
+      if (!silent) toast.error(t('dashboard.service_test_failed', { name: def.name }), msg);
+    } finally {
+      if (mountedRef.current) setTesting((prev) => ({ ...prev, [def.id]: false }));
+    }
+  };
+
+  const handleTestAll = async () => {
+    if (batch.running) return;
+    setBatch({ running: true, done: 0, total: SERVICES.length });
+    let done = 0;
+    await runWithConcurrency(
+      SERVICES.map((def) => async () => {
+        await runServiceTest(def, true);
+        done += 1;
+        if (mountedRef.current) setBatch((prev) => ({ ...prev, done }));
+      }),
+      SERVICE_TEST_CONCURRENCY,
+    );
+    if (mountedRef.current) setBatch({ running: false, done: 0, total: 0 });
+  };
+
+  return (
+    <Box sx={{ mt: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5, px: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.secondary' }}>
+          <Activity size={18} aria-hidden />
+          <Typography variant="body2" sx={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {t('dashboard.service_latency')}
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {batch.running && (
+            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <CircularProgress size={11} thickness={5} />
+              {t('dashboard.service_test_progress', { done: batch.done, total: batch.total })}
+            </Typography>
+          )}
+          <Button
+            size="small"
+            variant="contained"
+            disabled={batch.running}
+            onClick={() => void handleTestAll()}
+            sx={{ fontSize: 11, fontWeight: 700 }}
+          >
+            {t('dashboard.test_all_services')}
+          </Button>
+        </Box>
+      </Box>
+
+      <Grid container spacing={2}>
+        {SERVICES.map((def) => {
+          const result = results[def.id];
+          const isTesting = Boolean(testing[def.id]);
+          const statusText = !result
+            ? ''
+            : result.status === 'success'
+              ? t('dashboard.service_ok')
+              : result.status === 'timeout'
+                ? t('common.timeout')
+                : t('common.failed');
+          return (
+            <Grid key={def.id} size={{ xs: 12, sm: 6, md: 4, xl: 2.4 }}>
+              <Box sx={{ p: 2, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2, boxShadow: 1, height: '100%', display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0 }}>
+                    <Box sx={{ width: 34, height: 34, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, bgcolor: (theme) => alpha(theme.palette.text.primary, 0.06), border: 1, borderColor: 'divider' }}>
+                      <def.Icon size={18} />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {def.name}
+                      </Typography>
+                      {result && (
+                        <Typography variant="caption" sx={{ fontSize: 10, color: 'text.secondary', fontWeight: 700, display: 'block' }}>
+                          {t('dashboard.service_latency_updated', { time: formatClock(result.timestamp) })}
+                        </Typography>
+                      )}
+                    </Box>
+                  </Box>
+                  <IconButton
+                    size="small"
+                    aria-label={t('dashboard.service_test_aria', { name: def.name })}
+                    disabled={isTesting || batch.running}
+                    onClick={() => void runServiceTest(def, false)}
+                    sx={{ color: 'text.secondary', flexShrink: 0, '&:hover': { color: 'primary.main' } }}
+                  >
+                    {isTesting ? <CircularProgress size={14} thickness={5} /> : <RefreshCw size={14} />}
+                  </IconButton>
+                </Box>
+
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mt: 'auto' }}>
+                  {isTesting ? (
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                      {t('common.loading')}
+                    </Typography>
+                  ) : result ? (
+                    <>
+                      <Typography
+                        variant="body2"
+                        title={result.error || undefined}
+                        sx={{ fontWeight: 700, fontSize: 18, color: result.status === 'success' ? latencyColor(result.latency) : 'error.main', lineHeight: 1.2 }}
+                      >
+                        {result.status === 'success' ? `${result.latency} ms` : statusText}
+                      </Typography>
+                      <Box
+                        component="span"
+                        sx={{
+                          px: 1, py: 0.25, borderRadius: 1, fontSize: 10, fontWeight: 700,
+                          textTransform: 'uppercase', color: statusColor(result.status),
+                          bgcolor: (theme) => alpha(theme.palette.success.main, result.status === 'success' ? 0.12 : 0),
+                          border: 1, borderColor: (theme) => alpha(theme.palette.success.main, result.status === 'success' ? 0.25 : 0),
+                        }}
+                      >
+                        {statusText}
+                      </Box>
+                    </>
+                  ) : (
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary', opacity: 0.6 }}>
+                      --
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            </Grid>
+          );
+        })}
+      </Grid>
+    </Box>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const { t } = useTranslation();
@@ -553,6 +761,8 @@ const Dashboard: React.FC = () => {
           </Box>
         </Grid>
       </Grid>
+
+      <ServiceLatencyPanel />
       </Box>
 
       <Modal isOpen={showCertModal} onClose={() => setShowCertModal(false)} title={t('dashboard.install_cert.title')} maxWidth="md">

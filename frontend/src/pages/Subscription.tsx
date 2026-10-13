@@ -1,19 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState, useContext } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useContext } from 'react';
 import {
   Box, Typography, Button, TextField, IconButton, Grid, Chip, Divider, CircularProgress,
   InputAdornment,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
-  AddCircle, Delete, RefreshCw, Download, CheckCircle, Search, Share, Lock,
+  AddCircle, Delete, RefreshCw, Download, CheckCircle, Search, Share, Lock, Stop, Activity,
 } from '../lib/icons';
 import {
   GetSubscriptions, AddSubscription, UpdateSubscription, DeleteSubscription,
   ActivateSubscription, SelectSubscriptionNode, TestSubscriptionNode,
 } from '../api/bindings';
-import ProxyNodeRow, { ProxyNode, ProxyGroup } from '../components/ProxyNodeRow';
+import ProxyNodeRow, { ProxyNode, ProxyGroup, NodeTestResult } from '../components/ProxyNodeRow';
 import { useTranslation } from '../i18n/I18nContext';
 import { toast } from '../lib/toast';
+import { extractErrorMessage, isTimeoutError, runWithConcurrency } from '../lib/utils';
 import { SettingsCtx } from '../App';
 
 interface Subscription {
@@ -35,6 +36,14 @@ interface Subscription {
   selection: Record<string, string>;
   error: string;
 }
+
+// Probe up to 4 nodes at a time: fast enough for large lists without
+// saturating the backend or the network stack.
+const TEST_CONCURRENCY = 4;
+
+// Results are keyed per subscription AND per node, so switching the viewed
+// subscription can never mix one provider's numbers into another's.
+const resultKey = (subId: string, nodeName: string) => `${subId}//${nodeName}`;
 
 const formatBytes = (bytes: number): string => {
   if (bytes <= 0) return '0 B';
@@ -62,20 +71,41 @@ const Subscription: React.FC = () => {
   const [adding, setAdding] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
 
+  // activeId tracks which subscription's node list is being VIEWED; which
+  // rules are actually applied is `s.active`, reported by the backend.
   const [activeId, setActiveId] = useState('');
   const [activeGroup, setActiveGroup] = useState('');
   const [search, setSearch] = useState('');
-  const [delays, setDelays] = useState<Record<string, number>>({});
-  const [testingKey, setTestingKey] = useState('');
+
+  const [testResults, setTestResults] = useState<Record<string, NodeTestResult>>({});
+  const [testingMap, setTestingMap] = useState<Record<string, boolean>>({});
+  const [batch, setBatch] = useState<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
+  const batchCancelRef = useRef(false);
+
+  const [switchingMode, setSwitchingMode] = useState(false);
+  const switchSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
       const list = (await GetSubscriptions()) as Subscription[];
+      if (!mountedRef.current) return;
       setSubs(list || []);
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+      // Keep the viewed subscription in sync with the actually applied one,
+      // so a refresh or restart always shows the real configuration.
+      setActiveId((prev) => {
+        if (prev && (list || []).some((s) => s.id === prev)) return prev;
+        return (list || []).find((s) => s.active)?.id || (list || [])[0]?.id || '';
+      });
+    } catch (err) {
+      if (mountedRef.current) toast.error(extractErrorMessage(err));
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
@@ -87,6 +117,11 @@ const Subscription: React.FC = () => {
     () => subs.find((s) => s.id === activeId) || null,
     [subs, activeId]
   );
+
+  // The subscription whose rules are really applied right now — the single
+  // source of truth for the mode switch highlight.
+  const appliedSub = useMemo(() => subs.find((s) => s.active) || null, [subs]);
+  const appliedIsDefault = !appliedSub || appliedSub.builtin;
 
   useEffect(() => {
     if (!activeSub) {
@@ -116,10 +151,10 @@ const Subscription: React.FC = () => {
       setUrl('');
       setShowAdd(false);
       await loadData();
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
     } finally {
-      setAdding(false);
+      if (mountedRef.current) setAdding(false);
     }
   };
 
@@ -129,10 +164,10 @@ const Subscription: React.FC = () => {
       await UpdateSubscription(id);
       toast.success(t('subscriptions.update_success'));
       await loadData();
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
     } finally {
-      setBusyId('');
+      if (mountedRef.current) setBusyId('');
     }
   };
 
@@ -143,26 +178,47 @@ const Subscription: React.FC = () => {
       await DeleteSubscription(sub.id);
       toast.success(t('common.success'));
       if (activeId === sub.id) setActiveId('');
+      setTestResults((prev) => {
+        const next: Record<string, NodeTestResult> = {};
+        for (const [key, value] of Object.entries(prev)) {
+          if (!key.startsWith(`${sub.id}//`)) next[key] = value;
+        }
+        return next;
+      });
       await loadData();
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
     } finally {
-      setBusyId('');
+      if (mountedRef.current) setBusyId('');
     }
   };
 
-  const handleActivate = async (sub: Subscription) => {
-    setBusyId(sub.id);
+  // Activate a subscription (or the built-in default rules) on the backend.
+  // The seq guard makes the LAST user choice win: a slow older request can
+  // never overwrite a newer switch. On failure the list is re-fetched so the
+  // UI rolls back to whatever the backend really applied.
+  const activateSubscription = async (target: Subscription) => {
+    if (switchingMode || target.active) return;
+    const seq = ++switchSeqRef.current;
+    setSwitchingMode(true);
     try {
-      await ActivateSubscription(sub.id);
-      toast.success(t('subscriptions.activate_success', { name: sub.name }));
-      setActiveId(sub.id);
+      await ActivateSubscription(target.id);
+      if (seq !== switchSeqRef.current || !mountedRef.current) return;
+      toast.success(
+        target.builtin
+          ? t('subscriptions.switch_default_success')
+          : t('subscriptions.switch_sub_success', { name: target.name })
+      );
+      setActiveId(target.id);
       await loadData();
+      if (seq !== switchSeqRef.current || !mountedRef.current) return;
       updateCache({ rulesVersion: Date.now() });
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+    } catch (err) {
+      if (seq !== switchSeqRef.current || !mountedRef.current) return;
+      toast.error(t('subscriptions.switch_failed'), extractErrorMessage(err));
+      await loadData();
     } finally {
-      setBusyId('');
+      if (seq === switchSeqRef.current && mountedRef.current) setSwitchingMode(false);
     }
   };
 
@@ -170,6 +226,7 @@ const Subscription: React.FC = () => {
     if (!activeSub || !activeGroup) return;
     try {
       await SelectSubscriptionNode(activeSub.id, activeGroup, nodeName);
+      if (!mountedRef.current) return;
       setSubs((prev) =>
         prev.map((s) =>
           s.id === activeSub.id
@@ -178,28 +235,80 @@ const Subscription: React.FC = () => {
         )
       );
       toast.success(t('subscriptions.node_selected', { name: nodeName }));
-    } catch (err: any) {
-      toast.error(err?.message || String(err));
+    } catch (err) {
+      toast.error(extractErrorMessage(err));
     }
   };
 
-  const handleTest = async (node: ProxyNode) => {
-    const key = node.name;
-    setTestingKey(key);
-    setDelays((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+  // Probe one node. Results merge into the per-node map; a failure records a
+  // timeout/error status instead of wiping the entry, and other nodes' results
+  // are never touched. toasts are suppressed during batch runs.
+  const runNodeTest = async (subId: string, node: ProxyNode, silent: boolean) => {
+    const key = resultKey(subId, node.name);
+    setTestingMap((prev) => ({ ...prev, [key]: true }));
     try {
-      const ms = (await TestSubscriptionNode(node.server, node.port)) as number;
-      setDelays((prev) => ({ ...prev, [key]: ms }));
-    } catch (err: any) {
-      setDelays((prev) => ({ ...prev, [key]: -1 }));
-      toast.error(err?.message || String(err));
+      const ms = await TestSubscriptionNode(node.server, node.port);
+      if (!mountedRef.current) return;
+      setTestResults((prev) => ({
+        ...prev,
+        [key]: { latency: ms, status: 'success', timestamp: Date.now() },
+      }));
+    } catch (err) {
+      if (!mountedRef.current) return;
+      const msg = extractErrorMessage(err);
+      setTestResults((prev) => ({
+        ...prev,
+        [key]: {
+          latency: null,
+          status: isTimeoutError(msg) ? 'timeout' : 'error',
+          timestamp: Date.now(),
+          error: msg,
+        },
+      }));
+      if (!silent) toast.error(t('subscriptions.node_test_failed', { name: node.name }), msg);
     } finally {
-      setTestingKey('');
+      if (mountedRef.current) setTestingMap((prev) => ({ ...prev, [key]: false }));
     }
+  };
+
+  const handleTest = (node: ProxyNode) => {
+    if (!activeSub) return;
+    void runNodeTest(activeSub.id, node, false);
+  };
+
+  const cancelBatch = () => { batchCancelRef.current = true; };
+
+  // Test every node in the current group, or all nodes of the subscription.
+  // Concurrency is capped and each result lands independently in the map;
+  // progress updates as individual nodes finish.
+  const handleTestAll = async (scope: 'group' | 'all') => {
+    if (!activeSub || batch.running) return;
+    const group = activeSub.groups.find((g) => g.name === activeGroup);
+    let pool: ProxyNode[];
+    if (scope === 'group' && group && !activeSub.builtin) {
+      const byName = new Map(activeSub.nodes.map((n) => [n.name, n]));
+      pool = group.members
+        .map((m) => byName.get(m))
+        .filter((n): n is ProxyNode => Boolean(n));
+    } else {
+      pool = [...activeSub.nodes];
+    }
+    if (pool.length === 0) return;
+
+    const subId = activeSub.id;
+    batchCancelRef.current = false;
+    setBatch({ running: true, done: 0, total: pool.length });
+    let done = 0;
+    await runWithConcurrency(
+      pool.map((node) => async () => {
+        await runNodeTest(subId, node, true);
+        done += 1;
+        if (mountedRef.current) setBatch((prev) => ({ ...prev, done }));
+      }),
+      TEST_CONCURRENCY,
+      () => batchCancelRef.current,
+    );
+    if (mountedRef.current) setBatch({ running: false, done: 0, total: 0 });
   };
 
   const visibleNodes = useMemo(() => {
@@ -219,6 +328,23 @@ const Subscription: React.FC = () => {
       (n) => n.name.toLowerCase().includes(q) || n.server.toLowerCase().includes(q)
     );
   }, [activeSub, activeGroup, search]);
+
+  const availableSubs = useMemo(() => subs.filter((s) => !s.builtin), [subs]);
+
+  const renderResultBadge = (subId: string, node: ProxyNode) => {
+    const key = resultKey(subId, node.name);
+    return (
+      <ProxyNodeRow
+        key={node.name}
+        node={node}
+        selected={activeSub?.selection[activeGroup] === node.name}
+        result={testResults[key]}
+        testing={Boolean(testingMap[key])}
+        onSelect={() => handleSelectNode(node.name)}
+        onTest={() => handleTest(node)}
+      />
+    );
+  };
 
   return (
     <Box sx={{ flexGrow: 1, minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -271,6 +397,63 @@ const Subscription: React.FC = () => {
             </Typography>
           </Box>
 
+          {/* Rule mode switch: highlight follows the backend-applied entry,
+              not the card being viewed, so UI and real config can't drift. */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap', p: 1.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2, boxShadow: 1 }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, p: 0.5, border: 1, borderColor: 'divider', borderRadius: 2 }} role="tablist" aria-label={t('subscriptions.mode_aria')}>
+              <Button
+                role="tab"
+                aria-selected={appliedIsDefault}
+                size="small"
+                disabled={switchingMode}
+                onClick={() => {
+                  const builtin = subs.find((s) => s.builtin);
+                  if (builtin) void activateSubscription(builtin);
+                }}
+                sx={{
+                  px: 2, py: 0.5, borderRadius: 1.5, fontSize: 11, fontWeight: 700,
+                  color: appliedIsDefault ? 'primary.main' : 'text.secondary',
+                  bgcolor: (theme) => (appliedIsDefault ? alpha(theme.palette.primary.main, 0.12) : 'transparent'),
+                  '&:hover': { bgcolor: (theme) => (appliedIsDefault ? alpha(theme.palette.primary.main, 0.12) : 'action.hover') },
+                }}
+              >
+                {switchingMode && appliedIsDefault ? <CircularProgress size={12} sx={{ mr: 0.75 }} /> : null}
+                {t('subscriptions.mode_default')}
+              </Button>
+              <Button
+                role="tab"
+                aria-selected={!appliedIsDefault}
+                size="small"
+                disabled={switchingMode || availableSubs.length === 0}
+                onClick={() => {
+                  const target = availableSubs.find((s) => s.active) || availableSubs[0];
+                  if (target) void activateSubscription(target);
+                }}
+                sx={{
+                  px: 2, py: 0.5, borderRadius: 1.5, fontSize: 11, fontWeight: 700,
+                  color: !appliedIsDefault ? 'primary.main' : 'text.secondary',
+                  bgcolor: (theme) => (!appliedIsDefault ? alpha(theme.palette.primary.main, 0.12) : 'transparent'),
+                  '&:hover': { bgcolor: (theme) => (!appliedIsDefault ? alpha(theme.palette.primary.main, 0.12) : 'action.hover') },
+                }}
+              >
+                {switchingMode && !appliedIsDefault ? <CircularProgress size={12} sx={{ mr: 0.75 }} /> : null}
+                {t('subscriptions.mode_subscription')}
+              </Button>
+            </Box>
+            <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              {switchingMode ? (
+                <>
+                  <Activity size={13} aria-hidden />
+                  {t('subscriptions.mode_switching')}
+                </>
+              ) : appliedIsDefault ? (
+                t('subscriptions.rules_source_default')
+              ) : (
+                t('subscriptions.rules_source_sub', { name: appliedSub?.name || '' })
+              )}
+            </Typography>
+          </Box>
+
           {loading ? (
             <Box sx={{ py: 8, display: 'flex', justifyContent: 'center' }}>
               <CircularProgress size={22} />
@@ -288,13 +471,13 @@ const Subscription: React.FC = () => {
                 return (
                   <Grid key={s.id} size={{ xs: 12, md: 6, xl: 4 }}>
                     <Box
-                      onClick={() => { if (!s.builtin) setActiveId(s.id); }}
+                      onClick={() => setActiveId(s.id)}
                       sx={{
                         p: 2.5, bgcolor: 'background.paper', border: 1,
                         borderColor: s.active ? 'primary.main' : 'divider',
                         borderRadius: 2, boxShadow: 1, transition: 'all 0.2s',
-                        cursor: s.builtin ? 'default' : 'pointer',
-                        '&:hover': s.builtin ? {} : { boxShadow: 3, borderColor: 'primary.main' },
+                        cursor: 'pointer',
+                        '&:hover': { boxShadow: 3, borderColor: 'primary.main' },
                       }}
                     >
                       <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
@@ -377,16 +560,20 @@ const Subscription: React.FC = () => {
                         </Box>
                       )}
 
-                      {!s.builtin && !s.active && (
+                      {!s.active && (
                         <Button
                           fullWidth
                           size="small"
                           variant="outlined"
-                          disabled={busyId === s.id || s.node_count === 0}
-                          onClick={(e) => { e.stopPropagation(); handleActivate(s); }}
+                          disabled={switchingMode || busyId === s.id || (!s.builtin && s.node_count === 0)}
+                          onClick={(e) => { e.stopPropagation(); void activateSubscription(s); }}
                           sx={{ mt: 2, fontSize: 11, fontWeight: 700 }}
                         >
-                          {t('subscriptions.activate')}
+                          {switchingMode
+                            ? t('subscriptions.mode_switching')
+                            : s.builtin
+                              ? t('subscriptions.activate_default')
+                              : t('subscriptions.activate')}
                         </Button>
                       )}
                     </Box>
@@ -407,14 +594,52 @@ const Subscription: React.FC = () => {
                   {t('subscriptions.node_selection')}
                 </Typography>
               </Box>
-              <TextField
-                size="small"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t('subscriptions.search_placeholder')}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment> } }}
-                sx={{ width: 220, '& input': { fontSize: '0.78rem' } }}
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                {batch.running && (
+                  <>
+                    <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <CircularProgress size={11} thickness={5} />
+                      {t('subscriptions.test_progress', { done: batch.done, total: batch.total })}
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      startIcon={<Stop size={13} />}
+                      onClick={cancelBatch}
+                      sx={{ fontSize: 11, fontWeight: 700, minWidth: 0 }}
+                    >
+                      {t('subscriptions.stop_test')}
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={batch.running || visibleNodes.length === 0}
+                  onClick={() => void handleTestAll('group')}
+                  sx={{ fontSize: 11, fontWeight: 700 }}
+                >
+                  {t('subscriptions.test_group')}
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  disabled={batch.running || activeSub.nodes.length === 0}
+                  onClick={() => void handleTestAll('all')}
+                  sx={{ fontSize: 11, fontWeight: 700 }}
+                >
+                  {t('subscriptions.test_all')}
+                </Button>
+                <TextField
+                  size="small"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('subscriptions.search_placeholder')}
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment> } }}
+                  sx={{ width: 220, '& input': { fontSize: '0.78rem' } }}
+                />
+              </Box>
             </Box>
 
             {activeSub.groups.length > 1 && (
@@ -448,23 +673,13 @@ const Subscription: React.FC = () => {
               </Box>
             ) : (
               <Box>
-                {visibleNodes.map((n) => (
-                  <ProxyNodeRow
-                    key={n.name}
-                    node={n}
-                    selected={activeSub.selection[activeGroup] === n.name}
-                    delay={delays[n.name]}
-                    testing={testingKey === n.name}
-                    onSelect={() => handleSelectNode(n.name)}
-                    onTest={() => handleTest(n)}
-                  />
-                ))}
+                {visibleNodes.map((n) => renderResultBadge(activeSub.id, n))}
               </Box>
             )}
           </Box>
         )}
 
-        {activeSub && activeSub.builtin && (
+        {activeSub && activeSub.builtin && appliedIsDefault && (
           <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', gap: 1.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider', borderRadius: 2 }}>
             <CheckCircle size={18} aria-hidden style={{ color: 'var(--mui-palette-success-main)', flexShrink: 0 }} />
             <Box>

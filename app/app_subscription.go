@@ -1,15 +1,22 @@
 package app
 
 import (
+	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"flowweaver/pkg/subscription"
 )
+
+const nodeTestTimeout = 5 * time.Second
+const serviceTestTimeout = 5 * time.Second
 
 // SubscriptionInfo is the frontend-facing shape of a subscription.
 type SubscriptionInfo struct {
@@ -191,6 +198,8 @@ func (a *App) GetActiveSubscriptionID() string {
 }
 
 // TestSubscriptionNode measures the latency of one node by dialing its server.
+// Timeout errors are wrapped with a "timeout" prefix so the frontend can tell
+// a timeout apart from other dial failures.
 func (a *App) TestSubscriptionNode(server string, port int) (int, error) {
 	target := net.JoinHostPort(strings.TrimSpace(server), strconv.Itoa(port))
 	if strings.TrimSpace(server) == "" || port <= 0 {
@@ -198,10 +207,60 @@ func (a *App) TestSubscriptionNode(server string, port int) (int, error) {
 	}
 
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", target, 5*time.Second)
+	conn, err := net.DialTimeout("tcp", target, nodeTestTimeout)
 	if err != nil {
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return 0, fmt.Errorf("timeout: %w", err)
+		}
 		return 0, err
 	}
 	_ = conn.Close()
 	return int(time.Since(start).Milliseconds()), nil
+}
+
+// TestServiceLatency measures how long one HTTPS service takes to answer,
+// routed through the running local proxy so the number reflects the real
+// exit path (rules -> upstream node). When the proxy is not listening the
+// probe falls back to a direct request so it still reports reachability.
+func (a *App) TestServiceLatency(serviceURL string) (int64, error) {
+	u, err := url.Parse(strings.TrimSpace(serviceURL))
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return 0, errors.New("invalid service url, https:// required")
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+	}
+	if a.IsProxyRunning() {
+		proxyURL, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", a.GetListenPort()))
+		if err != nil {
+			return 0, err
+		}
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+
+	client := &http.Client{Timeout: serviceTestTimeout, Transport: transport}
+	ctx, cancel := context.WithTimeout(context.Background(), serviceTestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return 0, err
+	}
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	elapsed := time.Since(start).Milliseconds()
+	if err != nil {
+		var ne net.Error
+		if errors.As(err, &ne) && ne.Timeout() {
+			return 0, fmt.Errorf("timeout: %w", err)
+		}
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return 0, fmt.Errorf("http status %d", resp.StatusCode)
+	}
+	return elapsed, nil
 }

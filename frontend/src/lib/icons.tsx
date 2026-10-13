@@ -66,6 +66,11 @@ import verified from '@iconify-icons/material-symbols/verified'
 import verifiedUser from '@iconify-icons/material-symbols/verified-user'
 import wifi from '@iconify-icons/material-symbols/wifi'
 import lifebuoy from '@iconify-icons/mdi/lifebuoy'
+import mdiGoogle from '@iconify-icons/mdi/google'
+import mdiGithub from '@iconify-icons/mdi/github'
+import mdiYoutube from '@iconify-icons/mdi/youtube'
+import mdiTwitter from '@iconify-icons/mdi/twitter'
+import mdiMusicNote from '@iconify-icons/mdi/music-note'
 
 export const Activity = m(activity)
 export const AddCircle = m(addCircle)
@@ -122,3 +127,8 @@ export const Sun = m(lightMode)
 export const Users = m(groups)
 export const Wifi = m(wifi)
 export const X = m(close)
+export const GoogleIcon = m(mdiGoogle)
+export const GithubIcon = m(mdiGithub)
+export const YoutubeIcon = m(mdiYoutube)
+export const XBrandIcon = m(mdiTwitter)
+export const MusicNoteIcon = m(mdiMusicNote)
