@@ -123,6 +123,41 @@ func (s *Store) load() error {
 	return nil
 }
 
+// Reload re-reads the store file, picking up changes written by another
+// process (the GUI). A successful read replaces the entry list and the
+// active id; on any read or parse failure the in-memory state survives.
+func (s *Store) Reload() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	data, err := os.ReadFile(s.path)
+	if err != nil {
+		return err
+	}
+	var sf storeFile
+	if err := json.Unmarshal(data, &sf); err != nil {
+		return err
+	}
+
+	entries := []*Entry{builtinDefaultEntry()}
+	seen := make(map[string]bool)
+	for _, e := range sf.Entries {
+		if e == nil || e.ID == "" || seen[e.ID] || e.ID == DefaultSubscriptionID {
+			continue
+		}
+		seen[e.ID] = true
+		if e.Selection == nil {
+			e.Selection = map[string]string{}
+		}
+		entries = append(entries, e)
+	}
+	s.entries = entries
+	if sf.ActiveID != "" && (sf.ActiveID == DefaultSubscriptionID || seen[sf.ActiveID]) {
+		s.activeID = sf.ActiveID
+	}
+	return nil
+}
+
 func (s *Store) saveLocked() error {
 	sf := storeFile{ActiveID: s.activeID}
 	for _, e := range s.entries {
@@ -316,7 +351,12 @@ func (s *Store) Update(id string) (*Entry, error) {
 		selection = map[string]string{}
 	}
 	target.UpdatedAt = time.Now().Unix()
-	target.UserInfo = userInfo
+	// The quota is provider data and only that: like Clash, keep the previous
+	// numbers when a response carries no subscription-userinfo header instead
+	// of resetting them to zero.
+	if userInfoHasData(userInfo) {
+		target.UserInfo = userInfo
+	}
 	target.NodeCount = len(cfg.Nodes)
 	target.RuleCount = len(cfg.Groups)
 	target.Groups = cfg.Groups
@@ -556,6 +596,15 @@ func (s *Store) fetch(rawURL string) ([]byte, UserInfo, error) {
 	return nil, UserInfo{}, errors.Join(errs...)
 }
 
+// userInfoHasData reports whether the provider advertised any quota field in
+// this response. Subscription quota is never self-counted or extrapolated —
+// only the values from the subscription-userinfo header are shown.
+func userInfoHasData(u UserInfo) bool {
+	return u.Upload > 0 || u.Download > 0 || u.Total > 0 || u.ExpireTime > 0
+}
+
+// pruneSelection drops selections for groups the refreshed subscription no
+// longer declares.
 func pruneSelection(selection map[string]string, groups []Group) map[string]string {
 	if len(selection) == 0 {
 		return map[string]string{}

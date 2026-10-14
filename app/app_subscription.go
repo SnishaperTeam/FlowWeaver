@@ -134,6 +134,17 @@ func (a *App) syncFetchProxy() {
 	}
 }
 
+// syncSubscriptionToCore pushes subscription state changes to the core
+// process. The core's file watcher covers only the rules file, while
+// activate / switch / node-selection write subscriptions.json — without an
+// explicit reload the core keeps routing with the stale subscription state.
+// The in-process proxy shares this process's rule manager and needs no push.
+func (a *App) syncSubscriptionToCore() {
+	if a.core != nil {
+		a.core.ReloadIfRunning()
+	}
+}
+
 // AddSubscription downloads and registers a Clash subscription.
 func (a *App) AddSubscription(name, url string) (SubscriptionInfo, error) {
 	a.syncFetchProxy()
@@ -141,6 +152,7 @@ func (a *App) AddSubscription(name, url string) (SubscriptionInfo, error) {
 	if err != nil {
 		return SubscriptionInfo{}, err
 	}
+	a.syncSubscriptionToCore()
 	store := a.ruleManager.GetSubscriptionStore()
 	return toSubscriptionInfo(entry, store.ActiveID()), nil
 }
@@ -152,6 +164,7 @@ func (a *App) UpdateSubscription(id string) (SubscriptionInfo, error) {
 	if err != nil {
 		return SubscriptionInfo{}, err
 	}
+	a.syncSubscriptionToCore()
 	store := a.ruleManager.GetSubscriptionStore()
 	return toSubscriptionInfo(entry, store.ActiveID()), nil
 }
@@ -164,6 +177,7 @@ func (a *App) DeleteSubscription(id string) error {
 	if err := a.ruleManager.DeleteSubscription(id); err != nil {
 		return err
 	}
+	a.syncSubscriptionToCore()
 	if wasActive {
 		a.emitEvent("app:rules_changed", map[string]interface{}{"source": "subscription"})
 		a.emitFrontendState()
@@ -177,6 +191,7 @@ func (a *App) ActivateSubscription(id string) error {
 		return err
 	}
 	a.appendLog("Subscription activated: " + id)
+	a.syncSubscriptionToCore()
 	a.emitEvent("app:rules_changed", map[string]interface{}{"source": "subscription"})
 	a.emitFrontendState()
 	return nil
@@ -184,7 +199,11 @@ func (a *App) ActivateSubscription(id string) error {
 
 // SelectSubscriptionNode stores the selected node for a subscription group.
 func (a *App) SelectSubscriptionNode(subscriptionID, group, node string) error {
-	return a.ruleManager.SelectSubscriptionNode(subscriptionID, group, node)
+	if err := a.ruleManager.SelectSubscriptionNode(subscriptionID, group, node); err != nil {
+		return err
+	}
+	a.syncSubscriptionToCore()
+	return nil
 }
 
 // GetActiveSubscriptionID returns the active subscription id.

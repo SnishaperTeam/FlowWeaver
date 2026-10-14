@@ -93,9 +93,7 @@ func (c *vmessUDPPacketConn) connect() (net.Conn, error) {
 		return nil, fmt.Errorf("vmess udp: dialing the server failed: %w", err)
 	}
 
-	secure, err := wrapTLS(raw, c.node,
-		hostOr(c.node.Options["servername"], c.node.Server),
-		c.node.Options["tls"] == "true")
+	secure, err := wrapTLS(raw, c.node, "", c.node.Options["tls"] == "true")
 	if err != nil {
 		return nil, err
 	}

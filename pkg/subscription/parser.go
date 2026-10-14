@@ -278,6 +278,11 @@ func ParseSubscriptionUserInfo(header string) UserInfo {
 		case "total":
 			info.Total = n
 		case "expire":
+			// Some providers send a millisecond timestamp; Clash treats the
+			// field as unix seconds, so normalize the obvious range.
+			if n >= 1e12 {
+				n /= 1000
+			}
 			info.ExpireTime = n
 		}
 	}

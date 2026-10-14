@@ -83,12 +83,13 @@ func (n Node) ListenPacketUDP(ctx context.Context, destination M.Socksaddr) (N.P
 
 	case "trojan":
 		// Trojan carries UDP over the TCP stream with its own framing, and it
-		// always runs inside TLS.
+		// always runs inside TLS. The handshake terminates at the node's own
+		// server, so the SNI must never fall back to the UDP target host.
 		raw, err := net.DialTimeout("tcp", net.JoinHostPort(n.Server, fmt.Sprint(n.Port)), defaultDialTimeout)
 		if err != nil {
 			return nil, err
 		}
-		secure, err := wrapTLS(raw, n, host, true)
+		secure, err := wrapTLS(raw, n, "", true)
 		if err != nil {
 			return nil, err
 		}

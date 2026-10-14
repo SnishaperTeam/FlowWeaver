@@ -48,12 +48,16 @@ func (n Node) DialTimeout(targetHost string, targetPort int, timeout time.Durati
 
 	case "vmess":
 		// When TLS is configured the AEAD header must travel inside the
-		// encrypted channel, so upgrade before handshaking.
+		// encrypted channel, so upgrade before handshaking. The handshake
+		// terminates at the node's own server, so the SNI fallback chain must
+		// never use the tunnel target: Clash-style configs omit servername
+		// when it equals the server address, and sending the target domain
+		// instead fails the handshake (and leaks the target).
 		raw, err := net.DialTimeout("tcp", serverAddr, timeout)
 		if err != nil {
 			return nil, err
 		}
-		secure, err := wrapTLS(raw, n, targetHost, false)
+		secure, err := wrapTLS(raw, n, "", false)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +70,7 @@ func (n Node) DialTimeout(targetHost string, targetPort int, timeout time.Durati
 		if err != nil {
 			return nil, err
 		}
-		secure, err := wrapTLS(raw, n, targetHost, false)
+		secure, err := wrapTLS(raw, n, "", false)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +83,7 @@ func (n Node) DialTimeout(targetHost string, targetPort int, timeout time.Durati
 		if err != nil {
 			return nil, err
 		}
-		secure, err := wrapTLS(raw, n, targetHost, true)
+		secure, err := wrapTLS(raw, n, "", true)
 		if err != nil {
 			return nil, err
 		}

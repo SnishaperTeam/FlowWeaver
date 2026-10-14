@@ -73,10 +73,10 @@ func (c *vlessUDPPacketConn) openStream(destination M.Socksaddr, payload []byte)
 		return nil, fmt.Errorf("vless udp: dialing the server failed: %w", err)
 	}
 
-	// Present the configured SNI, falling back to the server address.
-	secure, err := wrapTLS(raw, c.node,
-		hostOr(c.node.Options["servername"], c.node.Server),
-		c.node.Options["tls"] == "true")
+	// Present the configured SNI, falling back to the node's own server
+	// address (wrapTLS resolves the full chain: servername option ->
+	// ServerName field -> server address).
+	secure, err := wrapTLS(raw, c.node, "", c.node.Options["tls"] == "true")
 	if err != nil {
 		return nil, err
 	}

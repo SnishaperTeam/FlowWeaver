@@ -165,6 +165,18 @@ func (r *coreRuntime) reloadConfig() error {
 	if err := r.ruleManager.LoadConfig(); err != nil {
 		return err
 	}
+	// subscriptions.json is written by the GUI process (activate / switch /
+	// node selection). The file watcher only covers the rules file, so the
+	// subscription store must be re-read here explicitly — otherwise the core
+	// keeps routing with the stale subscription state forever.
+	if r.subStore != nil {
+		if err := r.subStore.Reload(); err != nil {
+			r.appendLog("[core] subscription store reload failed: " + err.Error())
+		}
+		// SetSubscriptionStore re-applies the active subscription's rules on
+		// the freshly loaded rule set (and releases stale WG dialers).
+		r.ruleManager.SetSubscriptionStore(r.subStore)
+	}
 	port := r.ruleManager.GetListenPort()
 	if port == "" {
 		port = "8080"
