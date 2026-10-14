@@ -84,7 +84,7 @@ interface ServiceDef {
 
 const SERVICES: ServiceDef[] = [
   { id: 'google', name: 'Google', url: 'https://www.google.com/generate_204', Icon: GoogleIcon, tint: '#4285F4' },
-  { id: 'github', name: 'GitHub', url: 'https://github.com', Icon: GithubIcon, tint: '#8957E5' },
+  { id: 'github', name: 'GitHub', url: 'https://api.github.com', Icon: GithubIcon, tint: '#8957E5' },
   { id: 'tiktok', name: 'TikTok', url: 'https://www.tiktok.com', Icon: MusicNoteIcon, tint: '#FE2C55' },
   { id: 'youtube', name: 'YouTube', url: 'https://www.youtube.com', Icon: YoutubeIcon, tint: '#FF0000' },
   { id: 'x', name: 'X', url: 'https://x.com', Icon: XBrandIcon, tint: '#e7e9ea' },

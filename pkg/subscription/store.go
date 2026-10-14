@@ -1,20 +1,22 @@
 package subscription
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	neturl "net/url"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	"crypto/tls"
 )
 
 // DefaultSubscriptionID is the built-in entry that keeps the shipped rules and
@@ -228,7 +230,7 @@ func (s *Store) Add(name, url string) (*Entry, error) {
 		return nil, errors.New("subscription url must start with http:// or https://")
 	}
 
-	payload, userInfo, err := Fetch(url, s.fetchProxyValue())
+	payload, userInfo, err := s.fetch(url)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +287,7 @@ func (s *Store) Update(id string) (*Entry, error) {
 		return entry, nil
 	}
 
-	payload, userInfo, err := Fetch(url, s.fetchProxyValue())
+	payload, userInfo, err := s.fetch(url)
 	if err != nil {
 		s.markError(id, err)
 		return nil, err
@@ -414,6 +416,144 @@ func (s *Store) ActiveEntry() *Entry {
 	cloned.Groups = append([]Group(nil), entry.Groups...)
 	cloned.SiteGroups = append([]SiteGroup(nil), entry.SiteGroups...)
 	return &cloned
+}
+
+// ActiveNode returns the node selected for the first group that carries a
+// usable selection — Clash treats the active subscription as one proxy group,
+// so this is "the" current exit. ok=false when the built-in rules are active
+// or no usable node is selected.
+func (s *Store) ActiveNode() (Node, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entry := s.find(s.activeID)
+	if entry == nil || entry.Builtin || len(entry.Nodes) == 0 {
+		return Node{}, false
+	}
+	for _, group := range entry.Groups {
+		selected := entry.Selection[group.Name]
+		if selected == "" {
+			continue
+		}
+		for _, n := range entry.Nodes {
+			if n.Name == selected && n.Supported() {
+				return n, true
+			}
+		}
+	}
+	return Node{}, false
+}
+
+// NodeByID resolves one node of a subscription by name.
+func (s *Store) NodeByID(subscriptionID, nodeName string) (Node, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	entry := s.find(subscriptionID)
+	if entry == nil {
+		return Node{}, false
+	}
+	for _, n := range entry.Nodes {
+		if n.Name == nodeName && n.Supported() {
+			return n, true
+		}
+	}
+	return Node{}, false
+}
+
+// NodeHTTPClient builds an HTTP client whose TLS connections are tunnelled
+// through the given proxy node — the Clash Verge URL-test semantics: the
+// request leaves through the node and the node's server resolves the target
+// domain, so polluted local DNS cannot skew the measurement. The timeout
+// bounds dial, handshake and response headers as a whole.
+func NodeHTTPClient(node Node, timeout time.Duration) *http.Client {
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, portStr, err := net.SplitHostPort(addr)
+			if err != nil {
+				host, portStr = addr, "443"
+			}
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				port = 443
+			}
+
+			// node.DialTimeout does not take a context (some protocol dials
+			// ignore one anyway), so bound the dial against ctx explicitly
+			// and discard a late connection instead of leaking it.
+			type dialResult struct {
+				conn net.Conn
+				err  error
+			}
+			ch := make(chan dialResult, 1)
+			go func() {
+				tunnel, dialErr := node.DialTimeout(host, port, timeout)
+				ch <- dialResult{tunnel, dialErr}
+			}()
+			var tunnel net.Conn
+			select {
+			case r := <-ch:
+				if r.err != nil {
+					return nil, r.err
+				}
+				tunnel = r.conn
+			case <-ctx.Done():
+				go func() {
+					if r := <-ch; r.conn != nil {
+						r.conn.Close()
+					}
+				}()
+				return nil, ctx.Err()
+			}
+
+			tconn := tls.Client(tunnel, &tls.Config{ServerName: host, MinVersion: tls.VersionTLS12})
+			if err := tconn.HandshakeContext(ctx); err != nil {
+				tunnel.Close()
+				return nil, err
+			}
+			return tconn, nil
+		},
+	}
+	return &http.Client{Timeout: timeout, Transport: transport}
+}
+
+// fetch downloads the subscription payload the way Clash Verge does: through
+// the currently selected node first (subscription providers are routinely
+// unreachable directly, and the local proxy would still route their domains
+// direct), then through the configured local proxy, then direct.
+func (s *Store) fetch(rawURL string) ([]byte, UserInfo, error) {
+	clients := make([]*http.Client, 0, 3)
+	if node, ok := s.ActiveNode(); ok {
+		clients = append(clients, NodeHTTPClient(node, 30*time.Second))
+	}
+	if proxyURL := s.fetchProxyValue(); proxyURL != "" {
+		if pu, err := neturl.Parse(proxyURL); err == nil {
+			clients = append(clients, &http.Client{
+				Timeout: 30 * time.Second,
+				Transport: &http.Transport{
+					Proxy:           http.ProxyURL(pu),
+					TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+				},
+			})
+		}
+	}
+	clients = append(clients, &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+	})
+
+	var errs []error
+	for _, client := range clients {
+		payload, userInfo, err := fetchWith(client, rawURL)
+		if err == nil {
+			return payload, userInfo, nil
+		}
+		errs = append(errs, err)
+	}
+	return nil, UserInfo{}, errors.Join(errs...)
 }
 
 func pruneSelection(selection map[string]string, groups []Group) map[string]string {

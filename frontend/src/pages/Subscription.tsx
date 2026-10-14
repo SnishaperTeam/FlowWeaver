@@ -9,7 +9,7 @@ import {
 } from '../lib/icons';
 import {
   GetSubscriptions, AddSubscription, UpdateSubscription, DeleteSubscription,
-  ActivateSubscription, SelectSubscriptionNode, TestSubscriptionNode,
+  ActivateSubscription, SelectSubscriptionNode, TestSubscriptionNodeByID,
 } from '../api/bindings';
 import ProxyNodeRow, { ProxyNode, ProxyGroup, NodeTestResult } from '../components/ProxyNodeRow';
 import { useTranslation } from '../i18n/I18nContext';
@@ -240,14 +240,16 @@ const Subscription: React.FC = () => {
     }
   };
 
-  // Probe one node. Results merge into the per-node map; a failure records a
-  // timeout/error status instead of wiping the entry, and other nodes' results
-  // are never touched. toasts are suppressed during batch runs.
+  // Probe one node the Clash Verge way: the test request leaves through the
+  // node itself, so the number is real usable latency. Results merge into the
+  // per-node map; a failure records a timeout/error status instead of wiping
+  // the entry, and other nodes' results are never touched. toasts are
+  // suppressed during batch runs.
   const runNodeTest = async (subId: string, node: ProxyNode, silent: boolean) => {
     const key = resultKey(subId, node.name);
     setTestingMap((prev) => ({ ...prev, [key]: true }));
     try {
-      const ms = await TestSubscriptionNode(node.server, node.port);
+      const ms = await TestSubscriptionNodeByID(subId, node.name);
       if (!mountedRef.current) return;
       setTestResults((prev) => ({
         ...prev,

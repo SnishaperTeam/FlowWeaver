@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -197,17 +196,36 @@ func (a *App) GetActiveSubscriptionID() string {
 	return store.ActiveID()
 }
 
-// TestSubscriptionNode measures the latency of one node by dialing its server.
-// Timeout errors are wrapped with a "timeout" prefix so the frontend can tell
-// a timeout apart from other dial failures.
-func (a *App) TestSubscriptionNode(server string, port int) (int, error) {
-	target := net.JoinHostPort(strings.TrimSpace(server), strconv.Itoa(port))
-	if strings.TrimSpace(server) == "" || port <= 0 {
-		return 0, errors.New("invalid node address")
+// nodeTestURL is the Clash Verge default URL-test target: a 204 endpoint that
+// measures pure connectivity without downloading a body.
+const nodeTestURL = "https://www.gstatic.com/generate_204"
+
+// TestSubscriptionNodeByID measures the URL-test delay of one subscription
+// node the way Clash Verge does: the request to the test URL leaves through
+// the node itself (the node's server resolves the domain), so the number is
+// the real usable latency — server dial + tunnel + TLS + response — instead
+// of a bare TCP handshake to the server address.
+func (a *App) TestSubscriptionNodeByID(subscriptionID, nodeName string) (int, error) {
+	store := a.ruleManager.GetSubscriptionStore()
+	if store == nil {
+		return 0, errors.New("subscription store is not initialized")
+	}
+	node, ok := store.NodeByID(strings.TrimSpace(subscriptionID), strings.TrimSpace(nodeName))
+	if !ok {
+		return 0, fmt.Errorf("node %q not found in subscription %q", nodeName, subscriptionID)
+	}
+
+	client := subscription.NodeHTTPClient(node, nodeTestTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), nodeTestTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, nodeTestURL, nil)
+	if err != nil {
+		return 0, err
 	}
 
 	start := time.Now()
-	conn, err := net.DialTimeout("tcp", target, nodeTestTimeout)
+	resp, err := client.Do(req)
+	elapsed := int(time.Since(start).Milliseconds())
 	if err != nil {
 		var ne net.Error
 		if errors.As(err, &ne) && ne.Timeout() {
@@ -215,32 +233,71 @@ func (a *App) TestSubscriptionNode(server string, port int) (int, error) {
 		}
 		return 0, err
 	}
-	_ = conn.Close()
-	return int(time.Since(start).Milliseconds()), nil
+	resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return 0, fmt.Errorf("http status %d", resp.StatusCode)
+	}
+	return elapsed, nil
 }
 
 // TestServiceLatency measures how long one HTTPS service takes to answer,
-// routed through the running local proxy so the number reflects the real
-// exit path (rules -> upstream node). When the proxy is not listening the
-// probe falls back to a direct request so it still reports reachability.
+// with Clash Verge semantics: the request leaves through the currently
+// selected subscription node when one applies (the node's server resolves
+// the domain, so polluted local DNS cannot skew the number), then falls back
+// to the running local proxy and finally to a direct request.
 func (a *App) TestServiceLatency(serviceURL string) (int64, error) {
 	u, err := url.Parse(strings.TrimSpace(serviceURL))
 	if err != nil || u.Scheme != "https" || u.Host == "" {
 		return 0, errors.New("invalid service url, https:// required")
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+	clients := make([]*http.Client, 0, 3)
+	if store := a.ruleManager.GetSubscriptionStore(); store != nil {
+		if node, ok := store.ActiveNode(); ok {
+			clients = append(clients, subscription.NodeHTTPClient(node, serviceTestTimeout))
+		}
 	}
 	if a.IsProxyRunning() {
 		proxyURL, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", a.GetListenPort()))
 		if err != nil {
 			return 0, err
 		}
-		transport.Proxy = http.ProxyURL(proxyURL)
+		clients = append(clients, &http.Client{
+			Timeout: serviceTestTimeout,
+			Transport: &http.Transport{
+				Proxy:           http.ProxyURL(proxyURL),
+				TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+			},
+		})
 	}
+	clients = append(clients, &http.Client{
+		Timeout: serviceTestTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+	})
 
-	client := &http.Client{Timeout: serviceTestTimeout, Transport: transport}
+	var errs []error
+	for _, client := range clients {
+		elapsed, err := probeService(client, u)
+		if err == nil {
+			return elapsed, nil
+		}
+		errs = append(errs, err)
+	}
+	err = errors.Join(errs...)
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return 0, fmt.Errorf("timeout: %w", err)
+	}
+	return 0, err
+}
+
+// probeService runs one GET and reports the time to the response headers.
+// Any HTTP response proves the exit path works, so status codes are not
+// treated as failures (a 403 from a bot-walled service still measures the
+// path latency); only transport errors fall through to the next client.
+func probeService(client *http.Client, u *url.URL) (int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), serviceTestTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
@@ -252,15 +309,8 @@ func (a *App) TestServiceLatency(serviceURL string) (int64, error) {
 	resp, err := client.Do(req)
 	elapsed := time.Since(start).Milliseconds()
 	if err != nil {
-		var ne net.Error
-		if errors.As(err, &ne) && ne.Timeout() {
-			return 0, fmt.Errorf("timeout: %w", err)
-		}
 		return 0, err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return 0, fmt.Errorf("http status %d", resp.StatusCode)
-	}
+	resp.Body.Close()
 	return elapsed, nil
 }

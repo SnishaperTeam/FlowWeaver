@@ -162,8 +162,8 @@ export const ActivateSubscription = (id: string) => appCall('ActivateSubscriptio
 export const SelectSubscriptionNode = (subscriptionID: string, group: string, node: string) =>
   appCall('SelectSubscriptionNode', subscriptionID, group, node);
 export const GetActiveSubscriptionID = () => appCall('GetActiveSubscriptionID');
-export const TestSubscriptionNode = (server: string, port: number) =>
-  appCall('TestSubscriptionNode', server, port) as Promise<number>;
+export const TestSubscriptionNodeByID = (subscriptionID: string, nodeName: string) =>
+  appCall('TestSubscriptionNodeByID', subscriptionID, nodeName) as Promise<number>;
 export const TestServiceLatency = (serviceURL: string) =>
   appCall('TestServiceLatency', serviceURL) as Promise<number>;
 
