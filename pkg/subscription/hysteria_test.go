@@ -265,8 +265,8 @@ func hysteriaServer(t *testing.T) (addr string, stop func()) {
 	return conn.Addr().String(), func() { conn.Close() }
 }
 
-// serveHysteriaTCP handles relayed streams: it reads the request frame, answers
-// with a TCPResponse, then echoes what the client sends.
+// serveHysteriaTCP handles relayed streams: it reads the official request
+// frame, answers with a TCPResponse, then echoes what the client sends.
 func serveHysteriaTCP(session *quic.Conn) {
 	for {
 		stream, err := session.AcceptStream(context.Background())
@@ -276,12 +276,8 @@ func serveHysteriaTCP(session *quic.Conn) {
 		go func(s *quic.Stream) {
 			defer s.Close()
 
-			// Request frame: varint length, varint type, body. The length
-			// covers the body only, not the type field.
-			length, _, err := consumeQUICVarintFrom(s)
-			if err != nil {
-				return
-			}
+			// Request frame: varint type (0x401), varint address length,
+			// address, varint padding length, padding.
 			msgType, _, err := consumeQUICVarintFrom(s)
 			if err != nil {
 				return
@@ -289,16 +285,27 @@ func serveHysteriaTCP(session *quic.Conn) {
 			if msgType != hysteriaTCPMsgType {
 				return
 			}
-
-			body := make([]byte, length)
-			if _, err := io.ReadFull(s, body); err != nil {
+			addrLen, _, err := consumeQUICVarintFrom(s)
+			if err != nil || addrLen == 0 || addrLen > 2048 {
 				return
+			}
+			addr := make([]byte, addrLen)
+			if _, err := io.ReadFull(s, addr); err != nil {
+				return
+			}
+			padLen, _, err := consumeQUICVarintFrom(s)
+			if err != nil {
+				return
+			}
+			if padLen > 0 {
+				if _, err := io.CopyN(io.Discard, s, int64(padLen)); err != nil {
+					return
+				}
 			}
 
 			// Answer with a success TCPResponse: status, empty message, no
 			// padding.
-			response := []byte{hysteriaStatusOK, 0x00}
-			_ = writeHysteriaFrame(s, hysteriaTCPMsgType, response)
+			_ = writeTCPResponse(s, true, "")
 
 			line, err := readStreamLine(s)
 			if err != nil && line == "" {
@@ -366,12 +373,7 @@ func TestHysteriaTCPRequestFrame(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		// Server: read the request frame.
-		length, _, err := consumeQUICVarintFrom(serverSide)
-		if err != nil {
-			done <- err
-			return
-		}
+		// Server: read the request frame (type first, no outer length).
 		msgType, _, err := consumeQUICVarintFrom(serverSide)
 		if err != nil {
 			done <- err
@@ -381,34 +383,43 @@ func TestHysteriaTCPRequestFrame(t *testing.T) {
 			done <- fmt.Errorf("msg type = 0x%x, want 0x%x", msgType, hysteriaTCPMsgType)
 			return
 		}
-		body := make([]byte, length)
-		if _, err := io.ReadFull(serverSide, body); err != nil {
+		addrLen, _, err := consumeQUICVarintFrom(serverSide)
+		if err != nil {
 			done <- err
 			return
 		}
-		if len(body) == 0 {
-			done <- fmt.Errorf("empty request body")
+		addr := make([]byte, addrLen)
+		if _, err := io.ReadFull(serverSide, addr); err != nil {
+			done <- err
 			return
 		}
-		// Answer with a success response: status plus an empty message.
-		if err := writeHysteriaFrame(serverSide, hysteriaTCPMsgType, []byte{hysteriaStatusOK, 0x00}); err != nil {
+		if !bytes.Contains(addr, []byte("target.test:443")) {
+			done <- fmt.Errorf("address = %q, want target.test:443", addr)
+			return
+		}
+		padLen, _, err := consumeQUICVarintFrom(serverSide)
+		if err != nil {
+			done <- err
+			return
+		}
+		if _, err := io.CopyN(io.Discard, serverSide, int64(padLen)); err != nil {
+			done <- err
+			return
+		}
+		// Answer with a success response: status, empty message, no padding.
+		if err := writeTCPResponse(serverSide, true, ""); err != nil {
 			done <- err
 			return
 		}
 		done <- nil
 	}()
 
-	payload, err := buildHysteriaTCPPayload("target.test", 443)
+	stream := &deadlineStream{Conn: clientSide}
+	conn, err := dialTCPOn(stream, "target.test", 443)
 	if err != nil {
-		t.Fatalf("build payload: %v", err)
+		t.Fatalf("dial: %v", err)
 	}
-	if err := writeHysteriaFrame(clientSide, hysteriaTCPMsgType, payload); err != nil {
-		t.Fatalf("write frame: %v", err)
-	}
-
-	if err := readHysteriaResponse(clientSide); err != nil {
-		t.Fatalf("read response: %v", err)
-	}
+	conn.Close()
 	if err := <-done; err != nil {
 		t.Fatalf("server: %v", err)
 	}
@@ -418,19 +429,64 @@ func TestHysteriaResponseRejection(t *testing.T) {
 	clientSide, serverSide := pipePair(t)
 
 	go func() {
-		// An error response: body is status 0x01, the message length and the
-		// message text, wrapped in the usual frame header.
-		body := append([]byte{hysteriaStatusError, 0x06}, []byte("denied")...)
-		_ = writeHysteriaFrame(serverSide, hysteriaTCPMsgType, body)
+		// An error response: status 0x01, the message length and the message
+		// text, with no padding.
+		_ = writeTCPResponse(serverSide, false, "denied")
 	}()
 
-	err := readHysteriaResponse(clientSide)
+	stream := &deadlineStream{Conn: clientSide}
+	_, err := dialTCPOn(stream, "target.test", 443)
 	if err == nil {
 		t.Fatal("expected an error when the server rejects the relay")
 	}
 	if !strings.Contains(err.Error(), "denied") {
 		t.Errorf("error should carry the server message, got %v", err)
 	}
+}
+
+// deadlineStream adapts a net.Conn to the *quic.Stream subset dialTCP needs.
+type deadlineStream struct {
+	net.Conn
+}
+
+func (s *deadlineStream) SetDeadline(t time.Time) error { return s.Conn.SetDeadline(t) }
+
+// dialTCPOn runs the relay handshake over an arbitrary stream so tests can
+// exercise the frame layer without a live QUIC session.
+func dialTCPOn(stream *deadlineStream, host string, port int) (net.Conn, error) {
+	frame, err := buildHysteriaTCPRequest(host, port)
+	if err != nil {
+		return nil, err
+	}
+	if err := stream.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		return nil, err
+	}
+	if _, err := stream.Write(frame); err != nil {
+		return nil, err
+	}
+	ok, msg, err := readHysteriaTCPResponse(stream)
+	if err != nil {
+		return nil, err
+	}
+	_ = stream.SetDeadline(time.Time{})
+	if !ok {
+		return nil, fmt.Errorf("hysteria2: relay rejected: %s", msg)
+	}
+	return stream, nil
+}
+
+// writeTCPResponse writes an official TCPResponse:
+// status, varint message length, message, varint padding length, padding.
+func writeTCPResponse(w io.Writer, ok bool, msg string) error {
+	buf := []byte{0x00}
+	if !ok {
+		buf[0] = 0x01
+	}
+	buf = appendQUICVarint(buf, uint64(len(msg)))
+	buf = append(buf, msg...)
+	buf = appendQUICVarint(buf, 0)
+	_, err := w.Write(buf)
+	return err
 }
 
 // pipePair returns two connected TCP conns. A buffered stream is required
@@ -471,34 +527,26 @@ func pipePair(t *testing.T) (client, server net.Conn) {
 	return client, result.conn
 }
 
-// TestHysteriaUDPFrameRoundTrip checks the UDPRequest body layout by decoding a
-// frame the client produced and comparing it with the original payload.
-func TestHysteriaUDPFrameRoundTrip(t *testing.T) {
+// TestHysteriaUDPMessageRoundTrip checks the official UDPMessage layout by
+// decoding a datagram the client produced and comparing it with the payload.
+func TestHysteriaUDPMessageRoundTrip(t *testing.T) {
 	addr, err := encodeHysteriaAddr("target.test", 443)
 	if err != nil {
 		t.Fatalf("encode address: %v", err)
 	}
 	payload := []byte("udp-datagram")
 
-	body := buildHysteriaUDPFragment(42, 0, 1, addr, payload)
+	datagram := buildHysteriaUDPMessage(42, 7, addr, payload)
 
-	// Wrap it the way it travels on the wire.
-	frame := appendQUICVarint(nil, uint64(len(body)))
-	frame = appendQUICVarint(frame, hysteriaUDPMsgType)
-	frame = append(frame, body...)
-
-	got, gotAddr, ok, err := parseHysteriaUDPFrame(frame)
+	got, gotAddr, err := parseHysteriaUDPMessage(datagram)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
-	}
-	if !ok {
-		t.Fatal("a well-formed UDPRequest was rejected")
 	}
 	if !bytes.Equal(got, payload) {
 		t.Errorf("payload = %q, want %q", got, payload)
 	}
 	if len(gotAddr) == 0 {
-		t.Error("the address should be reported for a first fragment")
+		t.Error("the address should be reported")
 	}
 
 	// The decoded address must name the original destination.
@@ -508,45 +556,26 @@ func TestHysteriaUDPFrameRoundTrip(t *testing.T) {
 	}
 }
 
-func TestHysteriaUDPFrameIgnoresOtherTypes(t *testing.T) {
-	// A heartbeat or any other message type must be skipped, not mis-parsed.
-	frame := appendQUICVarint(nil, 0)
-	frame = appendQUICVarint(frame, hysteriaTCPMsgType)
-
-	if _, _, ok, err := parseHysteriaUDPFrame(frame); ok || err != nil {
-		t.Errorf("a non-UDP message must be ignored, got ok=%v err=%v", ok, err)
-	}
-}
-
-func TestHysteriaUDPFragmentCarriesAddressOnlyFirst(t *testing.T) {
+func TestHysteriaUDPMessageRejectsFragmented(t *testing.T) {
 	addr, err := encodeHysteriaAddr("target.test", 443)
 	if err != nil {
 		t.Fatalf("encode: %v", err)
 	}
+	datagram := buildHysteriaUDPMessage(7, 0, addr, []byte("chunk"))
+	// A fragmented message carries fragment count > 1 at offset 7.
+	datagram[7] = 2
 
-	first := buildHysteriaUDPFragment(7, 0, 2, addr, []byte("chunk-a"))
-	// Continuation fragments use the None marker and carry no address.
-	second := buildHysteriaUDPFragment(7, 1, 2, nil, []byte("chunk-b"))
-
-	if !bytes.Contains(first, addr) {
-		t.Error("the first fragment must carry the address")
-	}
-	if bytes.Contains(second, addr) {
-		t.Error("continuation fragments must not repeat the address")
+	if _, _, err := parseHysteriaUDPMessage(datagram); err == nil {
+		t.Error("expected an error for a fragmented datagram")
 	}
 }
 
-func TestHysteriaUDPRejectsTruncatedFrame(t *testing.T) {
-	if _, _, _, err := parseHysteriaUDPFrame(nil); err == nil {
-		t.Error("expected an error for an empty frame")
+func TestHysteriaUDPMessageRejectsTruncated(t *testing.T) {
+	if _, _, err := parseHysteriaUDPMessage(nil); err == nil {
+		t.Error("expected an error for an empty datagram")
 	}
-
-	// A length that exceeds the buffer must be reported rather than accepted.
-	frame := appendQUICVarint(nil, 64)
-	frame = appendQUICVarint(frame, hysteriaUDPMsgType)
-	frame = append(frame, 0, 0, 0, 0, 0, 1)
-
-	if _, _, _, err := parseHysteriaUDPFrame(frame); err == nil {
+	// A truncated datagram whose address overruns the buffer must be reported.
+	if _, _, err := parseHysteriaUDPMessage([]byte{0, 0, 0, 0, 0, 0, 0, 1, 0x40}); err == nil {
 		t.Error("expected an error for a truncated datagram")
 	}
 }

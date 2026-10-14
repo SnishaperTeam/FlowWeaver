@@ -12,18 +12,21 @@ import (
 	M "github.com/sagernet/sing/common/metadata"
 )
 
-// hysteriaUDPPacketConn relays datagrams as Hysteria 2 UDPRequest messages
-// carried on QUIC datagrams.
+// hysteriaUDPPacketConn relays datagrams as official Hysteria 2 UDPMessage
+// frames (apernet/hysteria core/internal/protocol/proxy.go) carried on QUIC
+// datagrams:
 //
-// Because a QUIC datagram cannot exceed the path MTU, large datagrams are
-// split across fragments and reassembled by session id:
+//	Session ID (uint32 BE)
+//	Packet ID (uint16 BE)
+//	Fragment ID (uint8)
+//	Fragment count (uint8)
+//	Address length (QUIC varint)
+//	Address ("host:port")
+//	Data...
 //
-//	UDPRequest (0x402) body:
-//	  [4-byte big-endian session id][fragment index][fragment count]
-//	  [address][padding][data]
-//
-// Only the first fragment carries the address; later fragments use a zero
-// length marker and are matched to their session.
+// Only unfragmented datagrams (fragment count = 1) are exchanged; DNS-scale
+// traffic always fits, and a larger payload is dropped with an error rather
+// than silently truncated.
 type hysteriaUDPPacketConn struct {
 	session *hysteriaSession
 	// readBuf holds a reassembled datagram waiting to be handed over.
@@ -33,20 +36,14 @@ type hysteriaUDPPacketConn struct {
 
 	// nextSession hands out session ids for outgoing datagrams.
 	nextSession uint32
-	// fragments collects incoming fragments keyed by session id.
-	fragments map[uint32]*hysteriaFragment
+	// nextPacket counts packets within the session, matching the official
+	// client's per-session packet counter.
+	nextPacket uint16
 }
 
-type hysteriaFragment struct {
-	count     byte
-	parts     [][]byte
-	have      int
-	addr      []byte
-	addrReady bool
-}
-
-// maxUDPPayload is the practical datagram size that survives fragmentation.
-const maxUDPPayload = 1200
+// maxUDPPayload is the practical datagram size: a QUIC datagram must fit into
+// one packet, and the official client keeps messages within the same bound.
+const maxUDPPayload = 1152
 
 func dialHysteriaUDP(ctx context.Context, node Node, host string, port int) (*hysteriaUDPPacketConn, error) {
 	session, err := dialHysteria(ctx, node)
@@ -63,14 +60,15 @@ func dialHysteriaUDP(ctx context.Context, node Node, host string, port int) (*hy
 		session.close()
 		return nil, err
 	}
-
-	pc := &hysteriaUDPPacketConn{
-		session:   session,
-		fragments: make(map[uint32]*hysteriaFragment),
+	if len(target) > maxAddressLength {
+		session.close()
+		return nil, fmt.Errorf("hysteria2: udp target address too long")
 	}
+
+	pc := &hysteriaUDPPacketConn{session: session}
 	// Register the session with an empty datagram so the server allocates the
 	// association before real traffic starts.
-	if err := pc.sendFragments(target, nil); err != nil {
+	if err := pc.sendRaw(target, nil); err != nil {
 		session.close()
 		return nil, err
 	}
@@ -78,83 +76,50 @@ func dialHysteriaUDP(ctx context.Context, node Node, host string, port int) (*hy
 }
 
 func (c *hysteriaUDPPacketConn) WritePacket(buffer *buf.Buffer, destination M.Socksaddr) error {
+	payload := buffer.Bytes()
+	if len(payload) > maxUDPPayload {
+		buffer.Release()
+		return fmt.Errorf("hysteria2: udp payload %d exceeds the datagram limit", len(payload))
+	}
 	addr, err := encodeHysteriaAddr(tuicHostOf(destination), int(destination.Port))
 	if err != nil {
 		buffer.Release()
 		return err
 	}
-	payload := buffer.Bytes()
-	err = c.sendFragments(addr, payload)
+	err = c.sendRaw(addr, payload)
 	buffer.Release()
 	return err
 }
 
-// sendFragments splits a datagram across as many QUIC datagrams as needed.
-func (c *hysteriaUDPPacketConn) sendFragments(addr, payload []byte) error {
+// sendRaw serializes one unfragmented UDPMessage and sends it as a raw QUIC
+// datagram — no length or type prefix, the session id starts the message.
+func (c *hysteriaUDPPacketConn) sendRaw(addr, payload []byte) error {
 	c.session.mu.Lock()
 	sessionID := c.nextSession
+	packetID := c.nextPacket
 	c.nextSession++
+	c.nextPacket++
 	c.session.mu.Unlock()
-
-	// The address travels with the first fragment; the rest are marked None.
-	addressLen := len(addr)
-	overhead := addressLen + 8
-	if len(payload) <= maxUDPPayload-overhead {
-		body := buildHysteriaUDPFragment(sessionID, 0, 1, addr, payload)
-		return writeHysteriaDatagram(c.session, hysteriaUDPMsgType, body)
-	}
-
-	chunkSize := maxUDPPayload - 8
-	total := (len(payload) + chunkSize - 1) / chunkSize
-	if total > 255 {
-		total = 255
-	}
-	for i := 0; i < total; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if end > len(payload) {
-			end = len(payload)
-		}
-		fragmentAddr := addr
-		if i > 0 {
-			fragmentAddr = nil
-		}
-		body := buildHysteriaUDPFragment(sessionID, byte(i), byte(total), fragmentAddr, payload[start:end])
-		if err := writeHysteriaDatagram(c.session, hysteriaUDPMsgType, body); err != nil {
-			return err
-		}
-	}
-	return nil
+	return c.session.quic.SendDatagram(buildHysteriaUDPMessage(sessionID, packetID, addr, payload))
 }
 
-// buildHysteriaUDPFragment renders one fragment body.
-func buildHysteriaUDPFragment(sessionID uint32, index, total byte, addr, payload []byte) []byte {
-	body := make([]byte, 0, 11+len(addr)+len(payload))
-
+// buildHysteriaUDPMessage renders one official UDPMessage datagram:
+//
+//	Session ID (uint32 BE), Packet ID (uint16 BE),
+//	Fragment ID (uint8), Fragment count (uint8),
+//	Address length (QUIC varint), Address, Data.
+func buildHysteriaUDPMessage(sessionID uint32, packetID uint16, addr, payload []byte) []byte {
+	msg := make([]byte, 0, 8+len(addr)+len(payload))
 	var sid [4]byte
 	binary.BigEndian.PutUint32(sid[:], sessionID)
-	body = append(body, sid[:]...)
-	body = append(body, index, total)
-
-	if addr == nil {
-		// None marker: no address on continuation fragments.
-		body = append(body, 0x00)
-	} else {
-		body = append(body, addr...)
-	}
-
-	body = appendQUICVarint(body, 0) // padding length
-	body = append(body, payload...)
-	return body
-}
-
-// writeHysteriaDatagram frames a message and sends it as a QUIC datagram.
-func writeHysteriaDatagram(s *hysteriaSession, msgType uint64, body []byte) error {
-	frame := make([]byte, 0, len(body)+8)
-	frame = appendQUICVarint(frame, uint64(len(body)))
-	frame = appendQUICVarint(frame, msgType)
-	frame = append(frame, body...)
-	return s.quic.SendDatagram(frame)
+	var pid [2]byte
+	binary.BigEndian.PutUint16(pid[:], packetID)
+	msg = append(msg, sid[:]...)
+	msg = append(msg, pid[:]...)
+	msg = append(msg, 0x00, 0x01) // fragment id 0 of 1
+	msg = append(msg, addr...)
+	msg = append(msg, payload...)
+	return msg
 }
 
 func (c *hysteriaUDPPacketConn) ReadPacket(buffer *buf.Buffer) (M.Socksaddr, error) {
@@ -169,7 +134,7 @@ func (c *hysteriaUDPPacketConn) ReadPacket(buffer *buf.Buffer) (M.Socksaddr, err
 	return source, nil
 }
 
-// readOne receives datagrams until one completes a reassembled message.
+// readOne receives datagrams until one parses into an unfragmented UDPMessage.
 func (c *hysteriaUDPPacketConn) readOne() error {
 	for {
 		if c.session.isClosed() {
@@ -182,96 +147,43 @@ func (c *hysteriaUDPPacketConn) readOne() error {
 			return err
 		}
 
-		payload, addr, ok, err := parseHysteriaUDPFrame(frame)
+		payload, addr, err := parseHysteriaUDPMessage(frame)
 		if err != nil {
-			return err
-		}
-		if !ok {
+			// Malformed or fragmented datagrams are skipped, not fatal.
 			continue
 		}
-
-		if addr != nil {
-			// A fragment that carries an address starts a new message.
-			c.readBuf = payload
-			c.source = hysteriaSocksaddr(addr)
-			return nil
-		}
-		// Continuation fragments are dropped: this client never fragments
-		// outbound traffic, so an unexpected one is not ours to reassemble.
+		c.readBuf = payload
+		c.source = hysteriaSocksaddr(addr)
+		return nil
 	}
 }
 
-// parseHysteriaUDPFrame decodes a UDPRequest datagram. It reports ok=false for
-// frames of another type, and an error only for malformed input.
-func parseHysteriaUDPFrame(frame []byte) (payload []byte, addr []byte, ok bool, err error) {
-	rest := frame
+// parseHysteriaUDPMessage decodes one UDPMessage datagram. It reports an error
+// for malformed input and fragmented messages (which this client never
+// assembles) are rejected the same way and skipped by the caller.
+func parseHysteriaUDPMessage(frame []byte) (payload []byte, addr []byte, err error) {
+	if len(frame) < 8 {
+		return nil, nil, fmt.Errorf("hysteria2: datagram too short")
+	}
+	// session id (4) + packet id (2) + fragment id (1) + fragment count (1)
+	if frame[7] != 1 {
+		return nil, nil, fmt.Errorf("hysteria2: fragmented datagram")
+	}
+	rest := frame[8:]
 
 	length, n, err := consumeQUICVarint(rest)
 	if err != nil {
-		return nil, nil, false, fmt.Errorf("hysteria2: bad datagram length: %w", err)
+		return nil, nil, fmt.Errorf("hysteria2: bad address length: %w", err)
 	}
-	rest = rest[n:]
-
-	msgType, n, err := consumeQUICVarint(rest)
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("hysteria2: bad datagram type: %w", err)
+	if length == 0 || uint64(len(rest)-n) < length {
+		return nil, nil, fmt.Errorf("hysteria2: address overruns the datagram")
 	}
-	rest = rest[n:]
-
-	if msgType != hysteriaUDPMsgType {
-		return nil, nil, false, nil
+	addr = rest[n : n+int(length)]
+	payload = rest[n+int(length):]
+	if len(payload) == 0 {
+		return nil, nil, fmt.Errorf("hysteria2: datagram carries no data")
 	}
-	if uint64(len(rest)) < length {
-		return nil, nil, false, fmt.Errorf("hysteria2: truncated datagram")
-	}
-	body := rest[:length]
-
-	// session id(4) frag index(1) frag count(1)
-	if len(body) < 6 {
-		return nil, nil, false, fmt.Errorf("hysteria2: datagram body too short")
-	}
-	total := body[5]
-	if total != 1 {
-		// Fragmented replies are not reassembled; a single fragment is the
-		// common case and anything else is skipped rather than mis-parsed.
-		return nil, nil, false, nil
-	}
-
-	// The address follows, then a padding length and the data.
-	// The address offset is relative to the slice passed in, so shift it back
-	// into the body coordinates before reading the padding length.
-	relEnd, addr, err := splitHysteriaAddr(body[6:])
-	if err != nil {
-		return nil, nil, false, err
-	}
-	addressEnd := 6 + relEnd
-
-	padLen, n, err := consumeQUICVarint(body[addressEnd:])
-	if err != nil {
-		return nil, nil, false, fmt.Errorf("hysteria2: bad padding length: %w", err)
-	}
-	start := addressEnd + n + int(padLen)
-	if start > len(body) {
-		return nil, nil, false, fmt.Errorf("hysteria2: padding overruns the datagram")
-	}
-	return body[start:], addr, true, nil
-}
-
-// splitHysteriaAddr returns the offset just past the length prefixed address
-// and the address bytes. A zero length marks a continuation fragment, which
-// omits the address entirely.
-func splitHysteriaAddr(b []byte) (int, []byte, error) {
-	length, n, err := consumeQUICVarint(b)
-	if err != nil {
-		return 0, nil, fmt.Errorf("hysteria2: bad address length: %w", err)
-	}
-	if length == 0 {
-		return n, nil, nil
-	}
-	if uint64(len(b)-n) < length {
-		return 0, nil, fmt.Errorf("hysteria2: address overruns the datagram")
-	}
-	return n + int(length), b[n : n+int(length)], nil
+	return payload, addr, nil
 }
 
 // hysteriaSocksaddr decodes a "host:port" address into a sing address. The
@@ -295,16 +207,6 @@ func hysteriaSocksaddr(addr []byte) M.Socksaddr {
 	return M.Socksaddr{Fqdn: host, Port: uint16(port)}
 }
 
-// decodeVarintPort is retained for callers that read a bare varint port.
-
-func decodeVarintPort(b []byte) uint16 {
-	v, _, err := consumeQUICVarint(b)
-	if err != nil {
-		return 0
-	}
-	return uint16(v)
-}
-
 // tuicHostOf returns the host part of a sing address.
 func tuicHostOf(addr M.Socksaddr) string {
 	if addr.IsDomain() {
@@ -312,6 +214,9 @@ func tuicHostOf(addr M.Socksaddr) string {
 	}
 	return addr.Addr.String()
 }
+
+// maxAddressLength mirrors the official protocol limit on encoded addresses.
+const maxAddressLength = 2048
 
 func (c *hysteriaUDPPacketConn) Close() error {
 	c.session.close()

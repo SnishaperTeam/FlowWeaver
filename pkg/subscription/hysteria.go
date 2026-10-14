@@ -3,11 +3,14 @@ package subscription
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
+	mathrand "math/rand"
 	"net"
 	"net/http"
 	"strconv"
@@ -96,6 +99,34 @@ func (d *hysteriaDialer) dial(ctx context.Context, addr string, tlsCfg *tls.Conf
 	return conn, nil
 }
 
+// hysteriaTLSConfig builds the QUIC TLS configuration. When the subscription
+// pins the server certificate (hysteria2 `fingerprint` field / share-link
+// pinSHA256) the chain check is skipped and the leaf certificate is verified
+// against that pin instead — the same semantics as the official client.
+func hysteriaTLSConfig(node Node, serverName string) *tls.Config {
+	cfg := &tls.Config{
+		ServerName: serverName,
+		MinVersion: tls.VersionTLS13,
+		NextProtos: []string{"h3"},
+	}
+	if pin := strings.ToLower(strings.TrimSpace(node.Options["pinSHA256"])); pin != "" {
+		cfg.InsecureSkipVerify = true //nolint:gosec // the pin replaces chain verification
+		cfg.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+			if len(rawCerts) == 0 {
+				return fmt.Errorf("hysteria2: server presented no certificate to pin")
+			}
+			sum := sha256.Sum256(rawCerts[0])
+			if hex.EncodeToString(sum[:]) != pin {
+				return fmt.Errorf("hysteria2: server certificate does not match the pinned fingerprint")
+			}
+			return nil
+		}
+		return cfg
+	}
+	cfg.InsecureSkipVerify = node.Options["skip-cert-verify"] == "true" //nolint:gosec // mirrors the provider config
+	return cfg
+}
+
 // dialHysteria authenticates over HTTP/3 and returns a ready session.
 func dialHysteria(ctx context.Context, node Node) (*hysteriaSession, error) {
 	password := node.Options["password"]
@@ -114,12 +145,7 @@ func dialHysteria(ctx context.Context, node Node) (*hysteriaSession, error) {
 	}
 
 	transport := &http3.Transport{
-		TLSClientConfig: &tls.Config{
-			ServerName:         serverName,
-			InsecureSkipVerify: node.Options["skip-cert-verify"] == "true", //nolint:gosec // mirrors the provider config
-			MinVersion:         tls.VersionTLS13,
-			NextProtos:         []string{"h3"},
-		},
+		TLSClientConfig: hysteriaTLSConfig(node, serverName),
 		QUICConfig:      &quic.Config{EnableDatagrams: true, KeepAlivePeriod: 10 * time.Second},
 		EnableDatagrams: true,
 		Dial:            dialer.dial,
@@ -134,15 +160,18 @@ func dialHysteria(ctx context.Context, node Node) (*hysteriaSession, error) {
 		}
 	}()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://"+serverName+"/auth", nil)
+	// The official protocol sends the auth request with the literal host
+	// "hysteria" (apernet/hysteria core/internal/protocol.URLHost): the server
+	// treats any other host as masquerade traffic and proxies it to the decoy
+	// site, which is why a request to https://<sni>/auth gets a plain 404.
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://hysteria/auth", nil)
 	if err != nil {
 		dialer.close()
 		return nil, fmt.Errorf("hysteria2: building auth request failed: %w", err)
 	}
 	req.Header.Set("Hysteria-Auth", password)
 	req.Header.Set("Hysteria-CC-RX", "0")
-	// A random padding string makes the request look less distinctive.
-	req.Header.Set("Hysteria-Padding", randomHex(16))
+	req.Header.Set("Hysteria-Padding", randomPadding(256, 2048))
 
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
@@ -180,91 +209,122 @@ func (d *hysteriaDialer) close() {
 	}
 }
 
+// hysteriaDialDeadline bounds the TCPRequest/TCPResponse exchange on a relay
+// stream; quic streams have no inherent deadline and the dial ctx does not
+// cover stream reads.
+const hysteriaDialDeadline = 10 * time.Second
+
 // dialTCP opens a bidirectional stream carrying a TCPRequest frame. A
 // unidirectional stream cannot work here because the relay is full duplex.
 func (s *hysteriaSession) dialTCP(ctx context.Context, host string, port int) (net.Conn, error) {
-	frame, err := buildHysteriaTCPPayload(host, port)
-	if err != nil {
-		return nil, err
-	}
-
 	stream, err := s.quic.OpenStreamSync(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("hysteria2: opening stream failed: %w", err)
 	}
 
-	if err := writeHysteriaFrame(stream, hysteriaTCPMsgType, frame); err != nil {
+	frame, err := buildHysteriaTCPRequest(host, port)
+	if err != nil {
 		_ = stream.Close()
 		return nil, err
+	}
+
+	// A server that accepts the frame but stalls would otherwise hang the
+	// caller forever, hence the stream deadline for the handshake exchange.
+	if err := stream.SetDeadline(time.Now().Add(hysteriaDialDeadline)); err != nil {
+		_ = stream.Close()
+		return nil, fmt.Errorf("hysteria2: setting stream deadline failed: %w", err)
+	}
+	if _, err := stream.Write(frame); err != nil {
+		_ = stream.Close()
+		return nil, fmt.Errorf("hysteria2: writing request failed: %w", err)
 	}
 
 	// The server answers with a response frame before any payload flows, so it
 	// must be consumed here: relaying data on a rejected request would send the
 	// client's bytes into a dead stream.
-	if err := readHysteriaResponse(stream); err != nil {
+	ok, msg, err := readHysteriaTCPResponse(stream)
+	if err != nil {
 		_ = stream.Close()
 		return nil, err
+	}
+	// The handshake is done; the caller owns the stream from here on.
+	_ = stream.SetDeadline(time.Time{})
+	if !ok {
+		_ = stream.Close()
+		return nil, fmt.Errorf("hysteria2: relay rejected: %s", msg)
 	}
 
 	return &hysteriaTCPConn{Stream: stream, session: s}, nil
 }
 
-// readHysteriaResponse consumes the response frame that follows a request.
+// readHysteriaTCPResponse consumes the TCPResponse that follows a request,
+// matching the official wire format:
 //
-// A response is framed like any other message, so the varint length and the
-// message type come first; the body then holds the status byte, an optional
-// message and the padding. Only the status matters to the client.
-func readHysteriaResponse(r io.Reader) error {
+//	Status (byte, 0=ok, 1=error)
+//	Message length (QUIC varint)
+//	Message (bytes)
+//	Padding length (QUIC varint)
+//	Padding (bytes)
+//
+// There is no outer length or type header — the response starts directly with
+// the status byte.
+func readHysteriaTCPResponse(r io.Reader) (bool, string, error) {
+	var status [1]byte
+	if _, err := io.ReadFull(r, status[:]); err != nil {
+		return false, "", fmt.Errorf("hysteria2: reading response status failed: %w", err)
+	}
+
 	length, _, err := consumeQUICVarintFrom(r)
 	if err != nil {
-		return fmt.Errorf("hysteria2: reading response length failed: %w", err)
+		return false, "", fmt.Errorf("hysteria2: reading response message length failed: %w", err)
 	}
-	msgType, _, err := consumeQUICVarintFrom(r)
+	if length > 2048 {
+		return false, "", fmt.Errorf("hysteria2: response message length %d exceeds the protocol limit", length)
+	}
+	msg := make([]byte, length)
+	if _, err := io.ReadFull(r, msg); err != nil {
+		return false, "", fmt.Errorf("hysteria2: reading response message failed: %w", err)
+	}
+
+	paddingLen, _, err := consumeQUICVarintFrom(r)
 	if err != nil {
-		return fmt.Errorf("hysteria2: reading response type failed: %w", err)
+		return false, "", fmt.Errorf("hysteria2: reading response padding length failed: %w", err)
 	}
-	if msgType != hysteriaTCPMsgType {
-		return fmt.Errorf("hysteria2: unexpected response type 0x%x", msgType)
-	}
-	if length == 0 {
-		return fmt.Errorf("hysteria2: empty response")
-	}
-
-	body := make([]byte, length)
-	if _, err := io.ReadFull(r, body); err != nil {
-		return fmt.Errorf("hysteria2: reading response body failed: %w", err)
-	}
-
-	if body[0] == hysteriaStatusOK {
-		return nil
-	}
-
-	// An error response carries a length prefixed message after the status.
-	if len(body) > 1 {
-		msgLen := int(body[1])
-		if 2+msgLen <= len(body) && msgLen > 0 {
-			return fmt.Errorf("hysteria2: relay rejected: %s", string(body[2:2+msgLen]))
+	if paddingLen > 0 {
+		if _, err := io.CopyN(io.Discard, r, int64(paddingLen)); err != nil {
+			return false, "", fmt.Errorf("hysteria2: skipping response padding failed: %w", err)
 		}
 	}
-	return fmt.Errorf("hysteria2: relay rejected with status %d", body[0])
+	return status[0] == hysteriaStatusOK, string(msg), nil
 }
 
-// buildHysteriaTCPPayload renders the TCPRequest body: address plus padding.
-func buildHysteriaTCPPayload(host string, port int) ([]byte, error) {
+// buildHysteriaTCPRequest renders the official TCPRequest frame
+// (apernet/hysteria core/internal/protocol/proxy.go):
+//
+//	FrameTypeTCPRequest (0x401, QUIC varint)
+//	Address length (QUIC varint)
+//	Address ("host:port")
+//	Padding length (QUIC varint)
+//	Padding (64-511 random bytes)
+//
+// There is no outer length prefix: the frame type comes first, which is what
+// the server's stream reader dispatches on.
+func buildHysteriaTCPRequest(host string, port int) ([]byte, error) {
 	addr, err := encodeHysteriaAddr(host, port)
 	if err != nil {
 		return nil, err
 	}
-	padding := make([]byte, 8)
-	if _, err := randRead(padding); err != nil {
+	// The official client pads TCP requests with 64-511 random bytes.
+	padding := make([]byte, 64+mathrand.Intn(448))
+	if _, err := rand.Read(padding); err != nil {
 		return nil, err
 	}
 
-	body := make([]byte, 0, len(addr)+2+len(padding))
-	body = append(body, addr...)
-	body = appendQUICVarint(body, uint64(len(padding)))
-	body = append(body, padding...)
-	return body, nil
+	frame := make([]byte, 0, 16+len(addr)+len(padding))
+	frame = appendQUICVarint(frame, hysteriaTCPMsgType)
+	frame = append(frame, addr...)
+	frame = appendQUICVarint(frame, uint64(len(padding)))
+	return append(frame, padding...), nil
 }
 
 // encodeHysteriaAddr renders the target as a "host:port" string prefixed with
@@ -309,21 +369,6 @@ func readHysteriaAddr(b []byte) (host string, port int, consumed int, err error)
 	}
 
 	return host, port, n + int(length), nil
-}
-
-// writeHysteriaFrame prefixes a payload with its varint length and message type.
-func writeHysteriaFrame(w io.Writer, msgType uint64, payload []byte) error {
-	var header []byte
-	header = appendQUICVarint(header, uint64(len(payload)))
-	header = appendQUICVarint(header, msgType)
-
-	if _, err := w.Write(header); err != nil {
-		return fmt.Errorf("hysteria2: writing frame header failed: %w", err)
-	}
-	if _, err := w.Write(payload); err != nil {
-		return fmt.Errorf("hysteria2: writing frame payload failed: %w", err)
-	}
-	return nil
 }
 
 // appendQUICVarint appends a QUIC variable length integer (RFC 9000 §16).
@@ -416,7 +461,19 @@ func randRead(b []byte) (int, error) {
 	return rand.Read(b)
 }
 
-// randomHex returns a hex string of n random bytes, used for Hysteria-Padding.
+// randomPadding returns a random alphanumeric string with a length in
+// [min, max), matching the official client's Hysteria-Padding header.
+func randomPadding(min, max int) string {
+	n := min + mathrand.Intn(max-min)
+	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	buf := make([]byte, n)
+	for i := range buf {
+		buf[i] = chars[mathrand.Intn(len(chars))]
+	}
+	return string(buf)
+}
+
+// randomHex returns a hex string of n random bytes.
 func randomHex(n int) string {
 	buf := make([]byte, n)
 	if _, err := rand.Read(buf); err != nil {

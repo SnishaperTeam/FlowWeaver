@@ -642,6 +642,11 @@ func fnv1a(s string) uint32 {
 
 func deriveNameFromURL(url string) string {
 	trimmed := strings.TrimSuffix(url, "/")
+	// Drop the query string first: subscription URLs routinely carry tokens
+	// (…/moscow?token=…), and the name should be the path segment only.
+	if idx := strings.IndexByte(trimmed, '?'); idx >= 0 {
+		trimmed = strings.TrimSuffix(trimmed[:idx], "/")
+	}
 	if idx := strings.LastIndex(trimmed, "/"); idx >= 0 && idx < len(trimmed)-1 {
 		return trimmed[idx+1:]
 	}

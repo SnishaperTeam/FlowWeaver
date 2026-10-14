@@ -60,6 +60,13 @@ type rawProxy struct {
 	Flow              string         `yaml:"flow"`
 	ALPN              []string       `yaml:"alpn"`
 	ClientFingerprint string         `yaml:"client-fingerprint"`
+	// Hysteria 2
+	Obfs          string `yaml:"obfs"`
+	ObfsPassword  string `yaml:"obfs-password"`
+	Fingerprint   string `yaml:"fingerprint"` // certificate SHA-256 pin for hysteria2
+	Ports         string `yaml:"ports"`
+	UpMbps        int    `yaml:"up"`
+	DownMbps      int    `yaml:"down"`
 	// WireGuard
 	PublicKey    string   `yaml:"public-key"`
 	PrivateKey   string   `yaml:"private-key"`
@@ -129,7 +136,7 @@ func ParseClash(payload []byte) (*ParsedConfig, error) {
 			Port:       p.Port,
 			ServerName: sni,
 			UDP:        p.UDP,
-			Options:    buildOptions(p),
+			Options:    buildOptions(typ, p),
 		})
 	}
 
@@ -163,7 +170,7 @@ func ParseClash(payload []byte) (*ParsedConfig, error) {
 	return out, nil
 }
 
-func buildOptions(p rawProxy) map[string]string {
+func buildOptions(typ string, p rawProxy) map[string]string {
 	opts := make(map[string]string)
 	put := func(k, v string) {
 		if v = strings.TrimSpace(v); v != "" {
@@ -180,7 +187,6 @@ func buildOptions(p rawProxy) map[string]string {
 	put("host", p.Host)
 	put("flow", p.Flow)
 	put("servername", firstNonEmpty(p.SNI, p.ServerName))
-	put("client-fingerprint", p.ClientFingerprint)
 	if p.AlterID > 0 {
 		opts["alterId"] = strconv.Itoa(p.AlterID)
 	}
@@ -203,6 +209,17 @@ func buildOptions(p rawProxy) map[string]string {
 	}
 	if len(p.ALPN) > 0 {
 		opts["alpn"] = strings.Join(p.ALPN, ",")
+	}
+	// Hysteria 2: obfs (salamander) must reach the dialer or the server drops
+	// the QUIC handshake silently. The fingerprint field here is the
+	// certificate SHA-256 pin, unrelated to vmess/vless client-fingerprint.
+	if typ == "hysteria2" || typ == "hy2" {
+		put("obfs", p.Obfs)
+		put("obfs-password", p.ObfsPassword)
+		put("pinSHA256", p.Fingerprint)
+		put("ports", p.Ports)
+	} else {
+		put("client-fingerprint", p.ClientFingerprint)
 	}
 	if p.WSHeaders != nil {
 		if v, ok := p.WSHeaders["Host"]; ok {

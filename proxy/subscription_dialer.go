@@ -138,7 +138,18 @@ func (p *ProxyServer) secureOverTunnel(tunnel net.Conn, cr *connectResult) (net.
 	}
 	allowInsecure := len(echBytes) == 0
 
-	uconn := p.GetUConn(tunnel, cr.rule.SniFake, host, cr.rule, allowInsecure, "", echBytes)
+	// The MITM relay speaks whatever it negotiated with the CLIENT over the
+	// fake-cert session, and pipes those bytes into the upstream verbatim.
+	// GetUConn offers h2 by default and a preset uTLS ClientHello does not
+	// surface the negotiated ALPN through ConnectionState(), so the relay
+	// cannot detect an h2 upstream — force http/1.1 here so both sides of the
+	// relay agree (the non-tunnelled path achieves the same via initialALPN).
+	alpn := ""
+	if cr.effectiveMode == "mitm" {
+		alpn = "http/1.1"
+	}
+
+	uconn := p.GetUConn(tunnel, cr.rule.SniFake, host, cr.rule, allowInsecure, alpn, echBytes)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
