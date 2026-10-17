@@ -158,6 +158,11 @@ func (n Node) Dial(targetHost string, targetPort int) (net.Conn, error) {
 
 // Supported reports whether this node's protocol can be dialled.
 func (n Node) Supported() bool {
+	// Raw nodes are dialled through the mihomo adapters, which support every
+	// protocol the core can parse — far beyond the legacy whitelist below.
+	if n.Raw != nil {
+		return true
+	}
 	switch strings.ToLower(strings.TrimSpace(n.Type)) {
 	case "ss", "ssr", "vmess", "vless", "trojan", "tuic", "hysteria2", "hy2", "wireguard", "socks5", "http", "https":
 		return true

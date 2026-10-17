@@ -117,6 +117,11 @@ func splitSocksaddr(addr M.Socksaddr) (string, int) {
 
 // UDPSupported reports whether this node can carry UDP traffic right now.
 func (n Node) UDPSupported() bool {
+	// Raw nodes ask the mihomo adapter — the core knows per-protocol UDP
+	// support (e.g. vmess defaults to udp off unless configured).
+	if n.Raw != nil {
+		return n.mihomoSupportsUDP()
+	}
 	switch lowerType(n.Type) {
 	case "ss", "ssr", "vmess", "vless", "wireguard", "socks5", "socks", "trojan", "tuic", "hysteria2", "hy2":
 		return true

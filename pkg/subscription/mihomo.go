@@ -68,6 +68,13 @@ func (n Node) URLTest(ctx context.Context, testURL string) (uint16, error) {
 	return delay, nil
 }
 
+// mihomoSupportsUDP asks the core adapter whether the parsed proxy carries
+// UDP. A parse failure reports false so UDP falls back to the direct path.
+func (n Node) mihomoSupportsUDP() bool {
+	proxy, err := n.MihomoProxy()
+	return err == nil && proxy.SupportUDP()
+}
+
 // dialMihomoTCP opens a TCP tunnel through the Clash-core adapter.
 // The returned conn implements net.Conn (mihomo's C.Conn embeds it).
 func (n Node) dialMihomoTCP(ctx context.Context, targetHost string, targetPort int) (net.Conn, error) {
