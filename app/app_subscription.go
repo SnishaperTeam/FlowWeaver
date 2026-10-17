@@ -234,6 +234,22 @@ func (a *App) TestSubscriptionNodeByID(subscriptionID, nodeName string) (int, er
 		return 0, fmt.Errorf("node %q not found in subscription %q", nodeName, subscriptionID)
 	}
 
+	// Subscription nodes carry their raw Clash config and run the core's own
+	// URL test (adapter.Proxy.URLTest — the exact code behind mihomo's
+	// /proxies/:name/delay endpoint that Clash Verge calls), so protocol and
+	// transport handling match Clash instead of the legacy hand-rolled
+	// dialers, which time out on modern node configs (vmess ws, REALITY...).
+	if node.Raw != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), nodeTestTimeout)
+		defer cancel()
+		delay, err := node.URLTest(ctx, nodeTestURL)
+		if err != nil {
+			return 0, err
+		}
+		return int(delay), nil
+	}
+
+	// Legacy path for nodes without raw config (hand-constructed entries).
 	client := subscription.NodeHTTPClient(node, nodeTestTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), nodeTestTimeout)
 	defer cancel()

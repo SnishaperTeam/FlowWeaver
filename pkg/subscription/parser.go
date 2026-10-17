@@ -18,6 +18,11 @@ type Node struct {
 	ServerName string            `json:"server_name,omitempty"`
 	UDP        bool              `json:"udp"`
 	Options    map[string]string `json:"options,omitempty"`
+	// Raw is the node's original Clash YAML mapping, kept verbatim so the
+	// mihomo adapters (see mihomo.go) see the exact config Clash itself
+	// would load — nested blocks like ws-opts/reality-opts/grpc-opts that
+	// the flattened Options map cannot carry survive here.
+	Raw map[string]any `json:"raw,omitempty"`
 }
 
 // Group is a Clash proxy-group.
@@ -86,9 +91,9 @@ type rawGroup struct {
 }
 
 type rawConfig struct {
-	Proxies     []rawProxy `yaml:"proxies"`
-	ProxyGroups []rawGroup `yaml:"proxy-groups"`
-	Rules       []string   `yaml:"rules"`
+	Proxies     []map[string]any `yaml:"proxies"`
+	ProxyGroups []rawGroup       `yaml:"proxy-groups"`
+	Rules       []string         `yaml:"rules"`
 }
 
 var knownNodeTypes = map[string]bool{
@@ -113,7 +118,15 @@ func ParseClash(payload []byte) (*ParsedConfig, error) {
 	}
 
 	seen := make(map[string]bool, len(raw.Proxies))
-	for _, p := range raw.Proxies {
+	for _, m := range raw.Proxies {
+		b, err := yaml.Marshal(m)
+		if err != nil {
+			continue
+		}
+		var p rawProxy
+		if err := yaml.Unmarshal(b, &p); err != nil {
+			continue
+		}
 		name := strings.TrimSpace(p.Name)
 		if name == "" || seen[name] {
 			continue
@@ -137,6 +150,7 @@ func ParseClash(payload []byte) (*ParsedConfig, error) {
 			ServerName: sni,
 			UDP:        p.UDP,
 			Options:    buildOptions(typ, p),
+			Raw:        m,
 		})
 	}
 

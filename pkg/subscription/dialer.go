@@ -16,14 +16,24 @@ func (n Node) DialTimeout(targetHost string, targetPort int, timeout time.Durati
 	if strings.TrimSpace(n.Type) == "" {
 		return nil, fmt.Errorf("node %q has no protocol type", n.Name)
 	}
+	if n.Port == 0 {
+		return nil, fmt.Errorf("node %q has no server port", n.Name)
+	}
 	if timeout <= 0 {
 		timeout = defaultDialTimeout
 	}
 
-	serverAddr := net.JoinHostPort(n.Server, fmt.Sprint(n.Port))
-	if n.Port == 0 {
-		return nil, fmt.Errorf("node %q has no server port", n.Name)
+	// Subscription nodes carry their raw Clash config and dial through the
+	// Clash core adapters (mihomo.go) — the hand-rolled switch below proved
+	// unable to speak modern node configs (vmess ws/grpc, REALITY, ...) and
+	// stayed only for nodes built without raw config.
+	if n.Raw != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		return n.dialMihomoTCP(ctx, targetHost, targetPort)
 	}
+
+	serverAddr := net.JoinHostPort(n.Server, fmt.Sprint(n.Port))
 
 	switch strings.ToLower(strings.TrimSpace(n.Type)) {
 	case "ss", "ssr":

@@ -28,6 +28,13 @@ func (n Node) ListenPacketUDP(ctx context.Context, destination M.Socksaddr) (N.P
 		return nil, fmt.Errorf("node %q has no server port", n.Name)
 	}
 
+	// Subscription nodes relay UDP through the Clash core adapters too
+	// (mihomo.go); the hand-rolled cases below apply only to nodes built
+	// without raw config.
+	if n.Raw != nil {
+		return n.listenPacketMihomoUDP(ctx, host, port)
+	}
+
 	switch lowerType(n.Type) {
 	case "socks5", "socks":
 		// The upstream SOCKS5 client implements UDP associate framing and
