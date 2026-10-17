@@ -392,7 +392,14 @@ func (p *ProxyServer) SetTUNMode(enabled bool) {
 	p.mu.Lock()
 	p.tunMode = enabled
 	p.ifaceConfig = cfg
+	resolver := p.dohResolver
 	p.mu.Unlock()
+
+	// 出站网卡绑定发生变化：丢弃已缓存的 DoH 客户端，让后续查询按新绑定重建
+	// （QUIC socket 的绑定在拨号时固化，复用会继续走旧网卡）。
+	if resolver != nil {
+		resolver.Close()
+	}
 }
 
 func (p *ProxyServer) outboundInterfaceConfig() netiface.Config {
@@ -661,10 +668,13 @@ func (p *ProxyServer) Start() error {
 	socks5ChanLn := newChanListener(ln.Addr())
 
 	httpSrv := &http.Server{
-		Addr:         listenAddr,
-		Handler:      http.HandlerFunc(p.handleRequest),
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Addr:    listenAddr,
+		Handler: http.HandlerFunc(p.handleRequest),
+		// 只保留读头超时（慢连接保护）。ReadTimeout/WriteTimeout 会给整个请求
+		// 生命周期上 30s 死线：大文件经 handleHTTP 流式转发时（IDM 下载 http
+		// 直链）必然在 30s 处被截断。CONNECT 请求 hijack 后会自行清空 deadline，
+		// 不受影响。
+		ReadHeaderTimeout: 30 * time.Second,
 	}
 	socks5Srv := p.newSocks5Server()
 	socks5Tracker := &socks5ConnTracker{Listener: socks5ChanLn}
@@ -820,7 +830,14 @@ func (p *ProxyServer) Stop() error {
 	p.httpChanLn = nil
 	p.socks5ChanLn = nil
 	p.Server = nil
+	resolver := p.dohResolver
 	p.mu.Unlock()
+
+	// 释放复用的 DoH 客户端：QUIC transport、底层 UDP socket 与空闲 TCP 连接。
+	// 不释放会在反复 Start/Stop 时持续泄漏连接与 goroutine。
+	if resolver != nil {
+		resolver.Close()
+	}
 
 	if mainLn != nil {
 		_ = mainLn.Close()
