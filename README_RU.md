@@ -2,26 +2,11 @@
 
 [中文](README.md) | [English](README_EN.md) | [Русский](README_RU.md)
 
-[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![License](https://img.shields.io/badge/Лицензия-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![Wiki](https://img.shields.io/badge/Документация-Wiki-orange?style=flat&logo=readthedocs)](https://github.com/SnishaperTeam/FlowWeaver/wiki) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=Релиз)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub Downloads](https://img.shields.io/github/downloads/SnishaperTeam/FlowWeaver/total?style=flat&logo=github&label=Загрузки)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=Последний%20коммит)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SnishaperTeam/FlowWeaver/build.yml?style=flat&logo=githubactions&label=CI)](https://github.com/SnishaperTeam/FlowWeaver/actions)
+[![Go Version](https://img.shields.io/badge/Go-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![Core](https://img.shields.io/badge/Ядро-snishaper--core-00ADD8?style=flat&logo=go)](https://github.com/SnishaperTeam/snishaper-core) [![License](https://img.shields.io/badge/Лицензия-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![Wiki](https://img.shields.io/badge/Документация-Wiki-orange?style=flat&logo=readthedocs)](https://github.com/SnishaperTeam/FlowWeaver/wiki) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=Релиз)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub Downloads](https://img.shields.io/github/downloads/SnishaperTeam/FlowWeaver/total?style=flat&logo=github&label=Загрузки)](https://github.com/SnishaperTeam/FlowWeaver/releases) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=Последний%20коммит)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SnishaperTeam/FlowWeaver/build.yml?style=flat&logo=githubactions&label=CI)](https://github.com/SnishaperTeam/FlowWeaver/actions)
 
 **FlowWeaver** — это полнофункциональный локальный прокси-клиент и шлюз, построенный вокруг **подписок Clash**, **мультипротокольных узлов**, **виртуального TUN-адаптера** и **туннелей WireGuard**, для тех, кому нужен стабильный и управляемый доступ в сложных сетевых условиях.
 
 Проект поддерживает кроссплатформенность. Подробности — в **[Platform_RU.md](Platform_RU.md)**.
-
----
-
-## Отношение к SniShaper
-
-Этот проект вырос из [SniShaper](https://github.com/SnishaperTeam/FlowWeaver) и ведётся тем же мейнтейнером. Оба проекта **активно поддерживаются**, но решают разные задачи:
-
-| | [SniShaper](https://github.com/SnishaperTeam/FlowWeaver) | FlowWeaver |
-|---|---|---|
-| Направленность | Лёгкий прокси-сервер | Полнофункциональный клиент / шлюз |
-| Сильные стороны | Инъекция ECH, фрагментация TLS, миграция сессий | Подписки Clash, мультипротокольные узлы, WireGuard, TUN-шлюз |
-| Зависимости | Минимальные, удобно для развёртывания сервера | Приоритет функций, зависимостей больше |
-| Сопровождение | Продолжается | Продолжается |
-
-Проекты используют часть общих идей (плоскость данных sing-tun, обработка uTLS/ECH), но **поддерживают разные кодовые базы** и развиваются независимо. Форматы файлов подписок и правил совместимы, их можно импортировать в любой из проектов.
 
 ---
 
@@ -37,6 +22,8 @@
 | Сопровождение | Продолжается | Продолжается |
 
 Проекты используют часть общих идей (плоскость данных sing-tun, обработка uTLS/ECH), но **поддерживают разные кодовые базы** и развиваются независимо. Форматы файлов подписок и правил совместимы, их можно импортировать в любой из проектов.
+
+Оба проекта используют прокси-движок из отдельной библиотеки **[snishaper-core](https://github.com/SnishaperTeam/snishaper-core)**: прокси-сервер, движок правил, DoH-резолвер, менеджер сертификатов и плоскость данных TUN находятся в ней, а в этом репозитории остаётся только прикладной слой (GUI, CLI, системная интеграция и данные правил).
 
 ---
 

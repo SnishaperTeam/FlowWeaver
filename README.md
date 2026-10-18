@@ -4,7 +4,7 @@
 
 **FlowWeaver** 是一款功能全面的本地代理客户端与网关工具，围绕 **Clash 订阅**、**全协议节点**、**TUN 虚拟网卡** 和 **WireGuard 隧道** 构建，面向需要在复杂网络环境下获得稳定、可控访问体验的完整方案。
 
-[![Go Version](https://img.shields.io/badge/Go最低版本-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![License](https://img.shields.io/badge/许可证-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=最后提交)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=版本)](https://github.com/SnishaperTeam/FlowWeaver/releases)
+[![Go Version](https://img.shields.io/badge/Go最低版本-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![Core](https://img.shields.io/badge/核心库-snishaper--core-00ADD8?style=flat&logo=go)](https://github.com/SnishaperTeam/snishaper-core) [![License](https://img.shields.io/badge/许可证-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=最后提交)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=版本)](https://github.com/SnishaperTeam/FlowWeaver/releases)
 
 本项目提供跨平台支持。详见 **[Platform.md](Platform.md)**。
 
@@ -22,6 +22,8 @@
 | 维护 | 持续 | 持续 |
 
 两者共享部分技术思路（sing-tun 数据面、uTLS/ECH 处理），但**代码库独立**，可各自演进。订阅与规则文件格式兼容，可以互相导入。
+
+两者的代理引擎均来自独立库 **[snishaper-core](https://github.com/SnishaperTeam/snishaper-core)**：代理服务、规则引擎、DoH 解析、证书管理与 TUN 数据面由该库提供，本仓库只保留应用层（GUI、CLI、系统集成与规则数据）。
 
 ---
 
