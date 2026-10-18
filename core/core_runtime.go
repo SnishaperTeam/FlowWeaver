@@ -122,6 +122,7 @@ func newCoreRuntime() (*coreRuntime, error) {
 	subStore := subscription.NewStore(
 		common.ConfigSubscriptionPath(execDir),
 		nil,
+		subscription.WithProductName(ProductName),
 	)
 	ruleManager.SetSubscriptionStore(subStore)
 

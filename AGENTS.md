@@ -39,7 +39,7 @@ Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go
 
 Engine packages are consumed from `github.com/SnishaperTeam/snishaper-core` (pinned in `go.mod`, **no `replace` directive**) instead of being forked. This repo imports directly: `proxy`, `certmanager`, `cfpool`, `dohresolver`, `netiface`, `singtun`, `subscription`, `config` and `log`. Two more are reached transitively inside core's `proxy` package and are not imported here: `tlsfrag` (core `proxy/proxy.go`, `proxy/tls_fragment.go`) and `gfwlist` (core `proxy/auto_routing.go`).
 
-- Product-specific behaviour is injected rather than forked: `config.Brand{Name: core.ProductName}` (`core.ProductName = "FlowWeaver"`) and `proxy.WithProductName(core.ProductName)`
+- Product-specific behaviour is injected rather than forked: `config.Brand{Name: core.ProductName}` (`core.ProductName = "FlowWeaver"`), `proxy.WithProductName(core.ProductName)` and `subscription.WithProductName(core.ProductName)` (both `subscription.NewStore` call sites). Core requires `^v0.3.1`: v0.3.0 and earlier hardcoded `FlowWeaver` into the subscription download User-Agent and logged every sniffed SNI at info level
 - `netiface` is per-instance: construct with `netiface.NewSelector()` and refresh with `(*netiface.Selector).Invalidate()` after TUN start/stop. This replaces the old package-global `netiface.InvalidateCache()`
 
 # Conventions

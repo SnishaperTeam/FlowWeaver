@@ -17,6 +17,10 @@ var perConnectionTunLogs = []string{
 	tunDebugPrefix + " debug: CONNECT response status=\"HTTP/1.1 200 OK\"",
 	tunDebugPrefix + " debug: fake-ip allocated domain=example.com fake_ip=198.18.0.5 qtype=1",
 	tunDebugPrefix + " debug: udp relay: idle beyond ttl, releasing session",
+	// 目标为 IP 的连接（浏览器很常见）每次都会嗅探 SNI。core 侧已把该行
+	// 从 info 降到 debug（见 snishaper-core singtun/handler.go），这里同时
+	// 守住前缀契约：一旦 core 把它改回 info，本用例即失败。
+	tunDebugPrefix + " SNI sniffed sni=example.com previous=93.184.216.34",
 }
 
 // TestTunPerConnectionLogsSuppressedByDefault 锁定"默认不刷屏"这一行为。

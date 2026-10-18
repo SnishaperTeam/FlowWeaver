@@ -53,6 +53,7 @@ func NewApp() *App {
 	subStore := subscription.NewStore(
 		common.ConfigSubscriptionPath(execDir),
 		func(msg string) { log.Print(msg) },
+		subscription.WithProductName(core.ProductName),
 	)
 	ruleManager.SetSubscriptionStore(subStore)
 
