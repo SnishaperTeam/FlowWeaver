@@ -12,7 +12,7 @@ import (
 
 	"flowweaver/app"
 	"flowweaver/core"
-	"flowweaver/proxy"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
 )
 
 // configApp builds an App that only loads settings and rules. Commands that

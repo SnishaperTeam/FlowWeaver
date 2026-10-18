@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"flowweaver/common"
-	"flowweaver/pkg/subscription"
+	"github.com/SnishaperTeam/snishaper-core/subscription"
 )
 
 // subscriptionStore opens the same store the app and core use, so CLI changes

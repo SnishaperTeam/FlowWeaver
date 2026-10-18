@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"flowweaver/common"
-	"flowweaver/pkg/dohresolver"
-	"flowweaver/proxy"
+	"github.com/SnishaperTeam/snishaper-core/dohresolver"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
 )
 
 type Tester struct {

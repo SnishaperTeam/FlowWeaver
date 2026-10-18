@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"flowweaver/common"
-	"flowweaver/proxy"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
 )
 
 const coreRPCAddr = "127.0.0.1:18933"

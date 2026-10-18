@@ -20,14 +20,17 @@ import (
 	"strings"
 	"time"
 
+	corelog "github.com/SnishaperTeam/snishaper-core/log"
+
+	"github.com/SnishaperTeam/snishaper-core/certmanager"
+	"github.com/SnishaperTeam/snishaper-core/cfpool"
+	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	"github.com/SnishaperTeam/snishaper-core/dohresolver"
+	"github.com/SnishaperTeam/snishaper-core/netiface"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
+	"github.com/SnishaperTeam/snishaper-core/subscription"
 	"flowweaver/common"
 	"flowweaver/core"
-	"flowweaver/pkg/certmanager"
-	"flowweaver/pkg/cfpool"
-	"flowweaver/pkg/dohresolver"
-	"flowweaver/pkg/netiface"
-	"flowweaver/pkg/subscription"
-	"flowweaver/proxy"
 )
 
 func NewApp() *App {
@@ -36,7 +39,11 @@ func NewApp() *App {
 	settingsPath := common.ConfigSettingsPath(execDir)
 	rulesPath := common.ConfigRulesPath(execDir)
 
-	ruleManager := proxy.NewRuleManager(settingsPath, rulesPath)
+	ruleManager := proxy.NewRuleManager(settingsPath, rulesPath,
+		proxy.WithLogger(corelog.Std),
+		proxy.WithRouterDebug(os.Getenv("FLOWWEAVER_ROUTER_DEBUG") == "1"),
+		proxy.WithProductName(core.ProductName),
+	)
 	if err := ruleManager.LoadConfig(); err != nil {
 		log.Printf("[warn] Failed to load config at init: %v", err)
 	}
@@ -55,7 +62,10 @@ func NewApp() *App {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	proxyServer := proxy.NewProxyServer("127.0.0.1:" + port)
+	proxyServer := proxy.NewProxyServer("127.0.0.1:"+port,
+		proxy.WithLogger(corelog.Std),
+		proxy.WithProductName(core.ProductName),
+	)
 	proxyServer.SetRuleManager(ruleManager)
 	proxyServer.SetSubscriptionDialer(subStore)
 	a := &App{
@@ -68,6 +78,7 @@ func NewApp() *App {
 		launchedAtStartup:  HasLaunchArg("--startup"),
 		autoProxyAtStartup: HasLaunchArg("--autoproxy"),
 		core:               core.NewCoreClient(),
+		ifaces:             netiface.NewSelector(),
 	}
 
 	a.proxyServer.SetCFRefreshCallback(func() {
@@ -341,7 +352,7 @@ func (a *App) SetTUNInterfaceExclude(exclude string) error {
 	if err := a.ruleManager.UpdateTUNConfig(cfg); err != nil {
 		return err
 	}
-	netiface.InvalidateCache()
+	a.ifaces.Invalidate()
 	if a.core != nil {
 		a.core.ReloadIfRunning()
 	}
@@ -369,7 +380,7 @@ func (a *App) UpdateTUNConfig(cfg proxy.TUNConfig) error {
 	if err := a.ruleManager.UpdateTUNConfig(cfg); err != nil {
 		return err
 	}
-	netiface.InvalidateCache()
+	a.ifaces.Invalidate()
 
 	if a.core == nil {
 		return nil
@@ -400,7 +411,7 @@ func (a *App) GetTUNStatus() proxy.TUNStatus {
 
 func (a *App) GetNetworkInterfaces() []netiface.Descriptor {
 	cfg := a.ruleManager.GetTUNConfig()
-	descriptors := netiface.List(cfg.InterfaceConfig())
+	descriptors := a.ifaces.List(cfg.InterfaceConfigFor(coreconfig.Brand{Name: core.ProductName}))
 	a.appendLog(fmt.Sprintf("[action] GetNetworkInterfaces: %d interface(s) listed", len(descriptors)))
 	return descriptors
 }
@@ -412,7 +423,7 @@ func (a *App) SetTUNInterface(name string) error {
 
 	if selected != "" {
 		known := false
-		for _, descriptor := range netiface.List(cfg.InterfaceConfig()) {
+		for _, descriptor := range a.ifaces.List(cfg.InterfaceConfigFor(coreconfig.Brand{Name: core.ProductName})) {
 			if strings.EqualFold(descriptor.Name, selected) || strconv.Itoa(descriptor.Index) == selected {
 				known = true
 				selected = descriptor.Name
@@ -431,7 +442,7 @@ func (a *App) SetTUNInterface(name string) error {
 	if err := a.ruleManager.UpdateTUNConfig(cfg); err != nil {
 		return err
 	}
-	netiface.InvalidateCache()
+	a.ifaces.Invalidate()
 
 	if a.core == nil {
 		return nil
@@ -808,14 +819,18 @@ func (a *App) GetStats() core.StatsReply {
 	}
 }
 
-func (a *App) GetCACertPath() string {
+func (a *App) initCertManager() *certmanager.CertManager {
 	if a.certManager == nil && a.certPath != "" {
-		if cm, err := certmanager.InitCertManager(a.certPath); err == nil {
+		if cm, err := certmanager.InitCertManagerFor(coreconfig.Brand{Name: core.ProductName}, a.certPath); err == nil {
 			a.certManager = cm
 		}
 	}
-	if a.certManager != nil {
-		return a.certManager.GetCACertPath()
+	return a.certManager
+}
+
+func (a *App) GetCACertPath() string {
+	if cm := a.initCertManager(); cm != nil {
+		return cm.GetCACertPath()
 	}
 	return ""
 }
@@ -828,13 +843,7 @@ func (a *App) GetCACertPEM() string {
 }
 
 func (a *App) GetCAInstallStatus() CAInstallStatus {
-	if a.certManager == nil {
-		if a.certPath != "" {
-			if cm, err := certmanager.InitCertManager(a.certPath); err == nil {
-				a.certManager = cm
-			}
-		}
-	}
+	a.initCertManager()
 	if a.certManager == nil {
 		return CAInstallStatus{
 			CertPath:    a.certPath,

@@ -1,40 +1,51 @@
 # Build & Test
 
-- Build all: `.\build_windows.ps1 -Build all -Silent`
-- Build backend only: `.\build_windows.ps1 -Build backend -Silent`
-- Build frontend only: `.\build_windows.ps1 -Build frontend -Silent`
-- Build + MSIX: `.\build_windows.ps1 -Build all -Silent -BuildMsix`
+- Build all 12 targets: `.\build_windows.ps1 -All -Silent`
+- Build one platform/arch: `.\build_windows.ps1 -Platform windows -Arch x64 -Type cli -Type gui -Silent` (PowerShell binds a named parameter once, so repeat as `-Type cli,gui`; `-Platform`/`-Arch`/`-Type` accept `all`)
+- Backend only / frontend only: use the legacy 3-tuple `-Build <system>,<mode>,<scope>`, where scope is `backend`, `frontend` or `all` — e.g. `-Build windows,gui,backend`. The scope is the THIRD element: `-Build backend` alone is invalid (`Get-NormalizedPlatform` rejects `backend`).
+- Plan without building: `.\build_windows.ps1 -DryRun -All`
+- Build + MSIX: `.\build_windows.ps1 -All -BuildMsix`
+- Also see `.\build_windows.ps1 -Help` (self-documenting) and the 12-target matrix in build.md / build_EN.md; `build.sh` is the Linux/macOS twin and takes POSIX repeated flags (`--type cli --type gui`)
 - Headless CLI (linux/WSL TUN test): `$env:GOOS='linux'; $env:CGO_ENABLED='0'; go build -tags "headless with_gvisor" -o build/bin/flowweaver-linux ./cli` (must include `with_gvisor`, otherwise TUN fails with "gVisor is not included in this build") then run in WSL2 as root: `./flowweaver start && ./flowweaver tun on`, test with `curl -k -m 15 <url>`, cleanup `./flowweaver tun off && ./flowweaver stop`; note: `stop` is async, so wait for processes to fully exit (`pgrep -x flowweaver`) before the next `start` — core RPC is token-isolated (a stale instance can no longer kill a newly started core), but a zero-gap restart can still race the TUN device teardown and leave the data plane degraded
 - Frontend dev: `cd frontend && npm run dev`
 - Frontend install: `cd frontend && npm install`
 - Go mod tidy: `go mod tidy`
 - Go build check: `go build -tags with_gvisor ./...`
+- Go test: `go test -tags with_gvisor ./...`
+- Go vet: `go vet -tags with_gvisor ./...`
 - Frontend type check: `cd frontend && ./node_modules/.bin/tsc --noEmit` (authoritative; `vite build` does NOT run strict type checks, so it can miss TS errors)
-- No test framework exists (no test files in repo)
+- Tests exist and pass for `flowweaver/app`, `flowweaver/common`, `flowweaver/core` and `flowweaver/internal/rulesguard` (verified: `go test -tags with_gvisor ./...` is green; add new tests beside the package they guard)
 
 # Project Overview
 
-SniShaper is a Windows local proxy tool using ECH Injection, TLS-RF Fragmentation, QUIC Connection Rebuilding, and Lightweight Server Mode Relay. Frontend: React 19 + Wails v3 + MUI + Vite 8. Backend: Go 1.27+ with Wails v3 bindings.
+FlowWeaver is a Windows local proxy tool using ECH Injection, TLS-RF Fragmentation, QUIC Connection Rebuilding, and Lightweight Server Mode Relay. Frontend: React 19 + Wails v3 + MUI + Vite 8. Backend: Go 1.27+ with Wails v3 bindings. Its proxy engine lives in `snishaper-core` (see below); this repository holds the app, CLI, GUI and rule data.
 
 # Architecture
 
 - `/main.go` — entry point, Wails app + tray setup
 - `/app/` — Go backend: App struct, API bindings (`app_api.go`), system proxy (`app_system.go`), autostart
 - `/core/` — Mihomo core process management (`core_client.go`), TUN, admin elevation
-- `/proxy/` — Proxy server: MITM, SOCKS5, TLS fragmentation, TUN flow, auto-routing, rules
-- `/pkg/rules/gfwlist.go` — GFWList domain list: local file/reader loading + `IsBlocked` suffix match. NOTE: online update (fetch from URL, cache write) was removed; only local `gfwlist_cache.txt` (next to rules file) is loaded at startup, no network calls
-- `/pkg/` — Packages: cert manager, CF IP pool, DoH resolver, sysproxy, TLS fragmentation
+- `/proxy` — Proxy server (MITM, SOCKS5, TLS fragmentation, TUN flow, auto-routing, rules): no longer a local directory, imported from snishaper-core as `proxy`
+- `/pkg/` — Packages: local `sysproxy` and `platform` only; certmanager (CA), CF IP pool, DoH resolver, netiface, singtun, subscription and TLS fragmentation moved to snishaper-core
+- `gfwlist` — GFWList domain list (`github.com/SnishaperTeam/snishaper-core/gfwlist`): local file/reader loading + `IsBlocked` suffix match, wired into core's `proxy/auto_routing.go`. NOTE: online update (fetch from URL, cache write) was removed; only local `gfwlist_cache.txt` (next to rules file) is loaded at startup, no network calls
 - `/evolution/` — Rule evolution testing: tester, rule generator, result analysis
-- `/frontend/src/` — React SPA: 10 pages (Dashboard, Proxies, Rules, Routing, DNS, Evolution, Logs, Settings, About, Welcome)
-- `/rules/config.json` — Site group rules (~3800 lines), MITM/ECH/SNI-fake configs
+- `/frontend/src/` — React SPA: 11 pages (Dashboard, Proxies, Rules, Routing, DNS, Evolution, Logs, Settings, Subscription, About, Welcome), all lazily loaded
+- `/rules/config.json` — Site group rules (~4359 lines), MITM/ECH/SNI-fake configs
 - `/config/settings.json` — App settings (port, TUN, theme, Cloudflare IPs)
 
 Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go calls) → App API → proxy/core subsystems. Frontend state sync via `app:state_changed` events from `emitFrontendState()`.
 
+# snishaper-core Dependency
+
+Engine packages are consumed from `github.com/SnishaperTeam/snishaper-core` (pinned in `go.mod`, **no `replace` directive**) instead of being forked. This repo imports directly: `proxy`, `certmanager`, `cfpool`, `dohresolver`, `netiface`, `singtun`, `subscription`, `config` and `log`. Two more are reached transitively inside core's `proxy` package and are not imported here: `tlsfrag` (core `proxy/proxy.go`, `proxy/tls_fragment.go`) and `gfwlist` (core `proxy/auto_routing.go`).
+
+- Product-specific behaviour is injected rather than forked: `config.Brand{Name: core.ProductName}` (`core.ProductName = "FlowWeaver"`) and `proxy.WithProductName(core.ProductName)`
+- `netiface` is per-instance: construct with `netiface.NewSelector()` and refresh with `(*netiface.Selector).Invalidate()` after TUN start/stop. This replaces the old package-global `netiface.InvalidateCache()`
+
 # Conventions
 
-- Go: standard layout, `snishaper` module path, no external DI framework
-- Frontend: React 19 + TypeScript 6, `@/` path alias for `./src/`, MUI v9 + emotion for styling, `@heroicons/react` for icons
+- Go: standard layout, `flowweaver` module path, no external DI framework
+- Frontend: React 19 + TypeScript 7 (`typescript` ^7.0.2), `@/` path alias for `./src/`, MUI v9 + emotion for styling, `@iconify/react` (with `@iconify-icons/material-symbols` and `@iconify-icons/mdi` icon sets) for icons
 - Error handling: log via `a.appendLog()`, return errors to frontend; no panic except top-level recover in `main.go`
 - Naming: Go `camelCase` for unexported, `PascalCase` for exported; TS `camelCase` for functions/vars, `PascalCase` for components/types
 - Imports: Go stdlib → third-party → internal; TS: React → components → API → i18n
@@ -48,8 +59,8 @@ Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go
 
 # Security & Environment
 
-- Dev certificate: `devcert.pfx` (password: `password`)
-- Cert manager generates CA at `pkg/certmanager/` (runtime, gitignored)
+- Dev certificate: `devcert.pfx`, used to sign MSIX packages (gitignored, not present in a fresh clone; `build_windows.ps1` runs `winapp cert generate --install` when it is missing, or CI restores it from the `MSIX_PFX_BASE64` secret). Do not assume it exists.
+- Cert manager lives in snishaper-core (`certmanager`); it generates the CA under the per-user config dir (`common.ConfigCertDir()` → `common.UserConfigDir()/cert`, runtime, gitignored) via `certmanager.InitCertManagerFor(config.Brand{Name: core.ProductName}, certPath)`
 - Admin rights required for system proxy registry writes and TUN
 - Registry access via `golang.org/x/sys/windows/registry` (not `reg.exe`)
 - MSIX packaging requires PFX signing cert; CI uses self-signed
@@ -59,5 +70,5 @@ Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go
 - Changes to `app_system.go`, `app_api.go` — verify proxy start/stop + system proxy toggling
 - Changes to `rules/config.json` — verify correct site group, MITM/ECH modes
 - Changes to frontend event handling — verify `app:state` / `app:state_changed` events
-- Changes to core client — verify TUN ready + wintun.dll presence
+- Changes to core client — verify TUN ready; `wintun.dll` is a runtime artifact (`*.dll` is gitignored, and no `.dll` is tracked in this repo), so verify against the running build, not a tracked file
 - Changes to i18n keys/text — verify `tsc --noEmit` passes and zh/en/ru key trees stay consistent (no missing keys, no placeholder mismatches)

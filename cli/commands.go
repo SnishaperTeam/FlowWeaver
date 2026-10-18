@@ -13,9 +13,10 @@ import (
 	"flowweaver/app"
 	"flowweaver/common"
 	"flowweaver/core"
-	"flowweaver/pkg/certmanager"
 	"flowweaver/pkg/sysproxy"
-	"flowweaver/proxy"
+	"github.com/SnishaperTeam/snishaper-core/certmanager"
+	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
 )
 
 type cmdOut func(string)
@@ -263,7 +264,7 @@ func opCA(args []string, out cmdOut) int {
 		out("用法: ca status|install|uninstall|list|pem|export|path|regenerate")
 		return 2
 	}
-	cm, err := certmanager.InitCertManager(common.ConfigCertDir(execDir()))
+	cm, err := certmanager.InitCertManagerFor(coreconfig.Brand{Name: core.ProductName}, common.ConfigCertDir(execDir()))
 	if err != nil {
 		out("初始化证书管理器失败: " + err.Error())
 		return 1

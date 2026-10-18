@@ -10,7 +10,8 @@
 // mutate the machine. We therefore gate every candidate on ALL of:
 //
 //  1. Package allowlist — only known-pure packages are scanned
-//     (proxy, pkg/rules, pkg/cfpool, pkg/tlsfrag, pkg/platform, common).
+//     (common, pkg/platform). The engine packages now live in
+//     github.com/SnishaperTeam/snishaper-core and are tested there.
 //  2. Body taint analysis — a function is excluded if its body (directly or
 //     transitively through a package-local call) references an I/O package
 //     (os, net, net/http, http, os/exec, syscall, io, bufio, registry, log,
@@ -50,11 +51,7 @@ import (
 )
 
 var scanRoots = []string{
-	"proxy",
 	"common",
-	"pkg/rules",
-	"pkg/cfpool",
-	"pkg/tlsfrag",
 	"pkg/platform",
 }
 

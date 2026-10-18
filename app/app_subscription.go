@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"flowweaver/pkg/subscription"
+	"github.com/SnishaperTeam/snishaper-core/subscription"
 )
 
 const nodeTestTimeout = 5 * time.Second

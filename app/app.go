@@ -13,11 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SnishaperTeam/snishaper-core/certmanager"
+	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	"github.com/SnishaperTeam/snishaper-core/netiface"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
 	"flowweaver/common"
 	"flowweaver/core"
 	"flowweaver/evolution"
-	"flowweaver/pkg/certmanager"
-	"flowweaver/proxy"
 )
 
 // UIAdapter is an optional event sink used by headless builds (the CLI /
@@ -79,6 +81,10 @@ type App struct {
 	sourceRankAt        map[string]time.Time
 	rulesWatchMu        sync.Mutex
 	rulesWatchStop      func()
+	// ifaces is this App's outbound interface cache. TUN start/stop and any
+	// exclusion change invalidate it, because the list is only correct once our
+	// own adapter exists (or is gone).
+	ifaces *netiface.Selector
 }
 
 // ShouldQuit returns whether the app should quit.
@@ -265,7 +271,7 @@ func (a *App) startupV3() {
 	}
 
 	var err error
-	a.certManager, err = certmanager.InitCertManager(a.certPath)
+	a.certManager, err = certmanager.InitCertManagerFor(coreconfig.Brand{Name: core.ProductName}, a.certPath)
 	if err != nil {
 		a.appendLog("[startup] Failed to init cert manager: " + err.Error())
 	} else {

@@ -15,13 +15,53 @@ import (
 
 	"github.com/miekg/dns"
 
+	corelog "github.com/SnishaperTeam/snishaper-core/log"
+
+	"github.com/SnishaperTeam/snishaper-core/certmanager"
+	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	"github.com/SnishaperTeam/snishaper-core/netiface"
+	"github.com/SnishaperTeam/snishaper-core/proxy"
+	"github.com/SnishaperTeam/snishaper-core/singtun"
+	"github.com/SnishaperTeam/snishaper-core/subscription"
 	"flowweaver/common"
-	"flowweaver/pkg/certmanager"
-	"flowweaver/pkg/netiface"
-	"flowweaver/pkg/singtun"
-	"flowweaver/pkg/subscription"
-	"flowweaver/proxy"
 )
+
+// ProductName is the user-visible product name. It decides the TUN adapter
+// name, the generated CA subject and the stale-adapter cleanup scope, so the
+// core library must never label FlowWeaver's artefacts as its own reference
+// product.
+const ProductName = "FlowWeaver"
+
+// tunDebugPrefix 是 core singtun 给 debug 级日志加的前缀。
+//
+// 前缀必须与 snishaper-core/singtun/logger.go 的 Handle 保持一致：
+// debug 级写 "[sing-tun:debug] "，info 写 "[sing-tun] "，warn/error 分别写
+// "[sing-tun:warn] " 和 "[sing-tun:error] "。
+const tunDebugPrefix = "[sing-tun:debug]"
+
+// tunLogDebugEnabled 控制每连接级别的 TUN 详细日志，默认关闭。
+//
+// 这些日志在正常使用时每条 TCP 连接会打一到三行（TCP flow / CONNECT
+// request / CONNECT response），每次 DNS 查询还会再打一行（fake-ip
+// allocated），足以把有用的错误信息淹没在 5000 条环形缓冲里。
+// 通过环境变量 FLOWWEAVER_TUN_DEBUG=1 打开。
+//
+// 之所以在 App 层过滤而不是改 core：snishaper-core 是共享库，它的
+// logfHandler.Enabled 刻意对所有级别返回 true（"logf 管道本身不过滤"），
+// 因为参考产品 SniShaper 从来没有这个开关。FlowWeaver 迁移前有，所以由
+// FlowWeaver 在自己的边界上重新施加，而不是 fork core。
+var tunLogDebugEnabled = os.Getenv("FLOWWEAVER_TUN_DEBUG") == "1"
+
+// shouldEmitTunLog 判断一条 singtun 日志是否应当进入 App 日志管道。
+//
+// 只丢弃 debug 级（每连接）日志；info/warn/error 必须始终可见，否则隧道
+// 出问题时就无从排查。
+func shouldEmitTunLog(message string, debugEnabled bool) bool {
+	if debugEnabled {
+		return true
+	}
+	return !strings.HasPrefix(message, tunDebugPrefix)
+}
 
 // logBufPool provides reusable byte buffers for log formatting
 // to reduce memory allocation and GC pressure in high-frequency logging.
@@ -53,6 +93,10 @@ type coreRuntime struct {
 	routeEventsMu     sync.Mutex
 	routeEvents       []RouteEvent
 	rulesWatchStop    func()
+	// ifaces holds the outbound interface cache. TUN start/stop invalidate it,
+	// because the interface list only becomes correct once our own adapter
+	// exists (or is gone).
+	ifaces *netiface.Selector
 }
 
 func newCoreRuntime() (*coreRuntime, error) {
@@ -64,7 +108,11 @@ func newCoreRuntime() (*coreRuntime, error) {
 	settingsPath := common.ConfigSettingsPath(execDir)
 	rulesPath := common.ConfigRulesPath(execDir)
 
-	ruleManager := proxy.NewRuleManager(settingsPath, rulesPath)
+	ruleManager := proxy.NewRuleManager(settingsPath, rulesPath,
+		proxy.WithLogger(corelog.Std),
+		proxy.WithRouterDebug(os.Getenv("FLOWWEAVER_ROUTER_DEBUG") == "1"),
+		proxy.WithProductName(ProductName),
+	)
 	if err := ruleManager.LoadConfig(); err != nil {
 		return nil, err
 	}
@@ -88,11 +136,17 @@ func newCoreRuntime() (*coreRuntime, error) {
 		certPath:    common.ConfigCertDir(execDir),
 		ruleManager: ruleManager,
 		subStore:    subStore,
-		proxyServer: proxy.NewProxyServer("127.0.0.1:" + port),
-		logBuffer:   common.NewRingLogWriter(5000),
+		proxyServer: proxy.NewProxyServer("127.0.0.1:"+port,
+			proxy.WithLogger(corelog.Std),
+			proxy.WithProductName(ProductName),
+		),
+		ifaces:    netiface.NewSelector(),
+		logBuffer: common.NewRingLogWriter(5000),
 	}
 	// Initialize nativeTUN with DoH resolver
-	r.nativeTUN = singtun.NewManager(r.proxyServer.GetDoHResolver(), r.appendLog)
+	// 日志经 appendTunLog 过滤：core 不过滤级别，每连接 debug 日志默认在这里丢弃。
+	r.nativeTUN = singtun.NewManagerFor(coreconfig.Brand{Name: ProductName},
+		r.proxyServer.GetDoHResolver(), r.appendTunLog)
 	// TUN UDP traffic must be able to use the bound subscription node.
 	r.nativeTUN.SetUDPRelay(r.proxyServer)
 
@@ -105,7 +159,7 @@ func newCoreRuntime() (*coreRuntime, error) {
 func (r *coreRuntime) start() error {
 	r.setupLogger()
 	var err error
-	r.certManager, err = certmanager.InitCertManager(r.certPath)
+	r.certManager, err = certmanager.InitCertManagerFor(coreconfig.Brand{Name: ProductName}, r.certPath)
 	if err != nil {
 		r.appendLog("[core] Failed to init cert manager: " + err.Error())
 	}
@@ -198,7 +252,7 @@ func (r *coreRuntime) reloadCertificate() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	cm, err := certmanager.InitCertManager(r.certPath)
+	cm, err := certmanager.InitCertManagerFor(coreconfig.Brand{Name: ProductName}, r.certPath)
 	if err != nil {
 		return err
 	}
@@ -237,6 +291,17 @@ func (r *coreRuntime) appendLog(message string) {
 
 	_, _ = r.logBuffer.Write(*buf)
 	logBufPool.Put(buf) // Return to pool
+}
+
+// appendTunLog 是注入给 singtun.NewManagerFor 的日志回调。
+//
+// 它在 appendLog 之前施加级别过滤：core 的 logf 管道对所有级别都放行，
+// 每连接 debug 日志必须由 FlowWeaver 自己按 FLOWWEAVER_TUN_DEBUG 决定去留。
+func (r *coreRuntime) appendTunLog(message string) {
+	if !shouldEmitTunLog(message, tunLogDebugEnabled) {
+		return
+	}
+	r.appendLog(message)
 }
 
 func (r *coreRuntime) isLogCaptureEnabled() bool {
@@ -367,8 +432,8 @@ func (r *coreRuntime) startTUN() (err error) {
 	// 注意 SetTUNMode 必须在 Start 成功之后：Start 失败时 TUN 并不存在，
 	// 此时打开 TUN 模式会让所有出站连接去找一张并不存在的网卡。
 	r.proxyServer.SetTUNMode(true)
-	netiface.InvalidateCache()
-	if binding, selErr := netiface.Select(netiface.FamilyIPv4, tunCfg.InterfaceConfig(), r.appendLog); selErr == nil {
+	r.ifaces.Invalidate()
+	if binding, selErr := r.ifaces.Select(netiface.FamilyIPv4, tunCfg.InterfaceConfigFor(coreconfig.Brand{Name: ProductName}), r.appendLog); selErr == nil {
 		r.appendLog("[core] TUN outbound interface: " + binding.Describe())
 	}
 	// TUN 数据面自检：通过 TUN 发送 DNS 查询，验证 gvisor 栈正常工作。
@@ -446,7 +511,7 @@ func (r *coreRuntime) stopTUN() error {
 	// 通知 ProxyServer 退出 TUN 模式
 	r.proxyServer.SetTUNMode(false)
 	// TUN 网卡已消失，重新扫描网卡列表，避免下次出站仍引用已释放的接口索引。
-	netiface.InvalidateCache()
+	r.ifaces.Invalidate()
 	r.appendLog("[core] native sing-tun stopped")
 	return nil
 }
