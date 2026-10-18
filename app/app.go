@@ -15,11 +15,11 @@ import (
 
 	"github.com/SnishaperTeam/snishaper-core/certmanager"
 	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	"github.com/SnishaperTeam/snishaper-core/evolution"
 	"github.com/SnishaperTeam/snishaper-core/netiface"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
 	"flowweaver/common"
 	"flowweaver/core"
-	"flowweaver/evolution"
 )
 
 // UIAdapter is an optional event sink used by headless builds (the CLI /

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"flowweaver/evolution"
+	"github.com/SnishaperTeam/snishaper-core/evolution"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
 
 )

@@ -26,9 +26,9 @@ FlowWeaver is a Windows local proxy tool using ECH Injection, TLS-RF Fragmentati
 - `/app/` — Go backend: App struct, API bindings (`app_api.go`), system proxy (`app_system.go`), autostart
 - `/core/` — Mihomo core process management (`core_client.go`), TUN, admin elevation
 - `/proxy` — Proxy server (MITM, SOCKS5, TLS fragmentation, TUN flow, auto-routing, rules): no longer a local directory, imported from snishaper-core as `proxy`
-- `/pkg/` — Packages: local `sysproxy` and `platform` only; certmanager (CA), CF IP pool, DoH resolver, netiface, singtun, subscription and TLS fragmentation moved to snishaper-core
+- `/pkg/` — Packages: local `platform` only; sysproxy, certmanager (CA), CF IP pool, DoH resolver, netiface, singtun, subscription and TLS fragmentation all live in snishaper-core
 - `gfwlist` — GFWList domain list (`github.com/SnishaperTeam/snishaper-core/gfwlist`): local file/reader loading + `IsBlocked` suffix match, wired into core's `proxy/auto_routing.go`. NOTE: online update (fetch from URL, cache write) was removed; only local `gfwlist_cache.txt` (next to rules file) is loaded at startup, no network calls
-- `/evolution/` — Rule evolution testing: tester, rule generator, result analysis
+- `evolution` — Rule evolution testing (tester, rule generator, result analysis) is `github.com/SnishaperTeam/snishaper-core/evolution`; there is no local `/evolution/` directory
 - `/frontend/src/` — React SPA: 11 pages (Dashboard, Proxies, Rules, Routing, DNS, Evolution, Logs, Settings, Subscription, About, Welcome), all lazily loaded
 - `/rules/config.json` — Site group rules (~4359 lines), MITM/ECH/SNI-fake configs
 - `/config/settings.json` — App settings (port, TUN, theme, Cloudflare IPs)
@@ -37,9 +37,11 @@ Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go
 
 # snishaper-core Dependency
 
-Engine packages are consumed from `github.com/SnishaperTeam/snishaper-core` (pinned in `go.mod`, **no `replace` directive**) instead of being forked. This repo imports directly: `proxy`, `certmanager`, `cfpool`, `dohresolver`, `netiface`, `singtun`, `subscription`, `config` and `log`. Two more are reached transitively inside core's `proxy` package and are not imported here: `tlsfrag` (core `proxy/proxy.go`, `proxy/tls_fragment.go`) and `gfwlist` (core `proxy/auto_routing.go`).
+Engine packages are consumed from `github.com/SnishaperTeam/snishaper-core` (pinned in `go.mod`, **no `replace` directive**) instead of being forked. This repo imports directly: `proxy`, `certmanager`, `cfpool`, `dohresolver`, `netiface`, `singtun`, `subscription`, `sysproxy`, `evolution`, `config` and `log`. Two more are reached transitively inside core's `proxy` package and are not imported here: `tlsfrag` (core `proxy/proxy.go`, `proxy/tls_fragment.go`) and `gfwlist` (core `proxy/auto_routing.go`).
 
-- Product-specific behaviour is injected rather than forked: `config.Brand{Name: core.ProductName}` (`core.ProductName = "FlowWeaver"`), `proxy.WithProductName(core.ProductName)` and `subscription.WithProductName(core.ProductName)` (both `subscription.NewStore` call sites). Core requires `^v0.3.1`: v0.3.0 and earlier hardcoded `FlowWeaver` into the subscription download User-Agent and logged every sniffed SNI at info level
+`pkg/sysproxy` in this repo is only a thin facade: it holds one `core sysproxy.Manager` instance and re-exports the package-level helpers, so call sites keep working. Core's `Manager` is per-instance (no process-global proxy snapshot) and takes the sudo user through `sysproxy.WithRunAsUser`; the facade reads `SUDO_USER` for it.
+
+- Product-specific behaviour is injected rather than forked: `config.Brand{Name: core.ProductName}` (`core.ProductName = "FlowWeaver"`), `proxy.WithProductName(core.ProductName)` and `subscription.WithProductName(core.ProductName)` (both `subscription.NewStore` call sites). Core requires `^v0.4.0`: v0.4.0 moved `sysproxy` and `evolution` into the library (each app previously carried a byte-identical copy), v0.3.1 fixed the downstream bugs listed next, and v0.3.0 and earlier hardcoded `FlowWeaver` into the subscription download User-Agent and logged every sniffed SNI at info level
 - `netiface` is per-instance: construct with `netiface.NewSelector()` and refresh with `(*netiface.Selector).Invalidate()` after TUN start/stop. This replaces the old package-global `netiface.InvalidateCache()`
 
 # Conventions
