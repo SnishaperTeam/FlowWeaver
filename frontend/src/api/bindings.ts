@@ -69,6 +69,26 @@ export const GetProxyDiagnostics = () => appCall('GetProxyDiagnostics');
 export const GetProxyMode = () => appCall('GetProxyMode');
 export const GetRecentLogs = (limit: number) => appCall('GetRecentLogs', limit);
 
+// Live connection viewer
+export const GetActiveConnections = () => appCall('GetActiveConnections');
+
+// Rule match explanation (simulated, same pipeline as live matching)
+export const ExplainMatch = (host: string, process: string) => appCall('ExplainMatch', host, process);
+
+// Startup network recovery (leftover system proxy from a crashed run)
+export const GetNetworkRecoveryReport = () => appCall('GetNetworkRecoveryReport');
+
+// Configuration profiles (named snapshots of settings + rules)
+export const ListProfiles = () => appCall('ListProfiles');
+export const GetActiveProfile = () => appCall('GetActiveProfile');
+export const CreateProfile = (name: string) => appCall('CreateProfile', name);
+export const RenameProfile = (oldName: string, newName: string) => appCall('RenameProfile', oldName, newName);
+export const DuplicateProfile = (srcName: string, dstName: string) => appCall('DuplicateProfile', srcName, dstName);
+export const SwitchProfile = (name: string) => appCall('SwitchProfile', name);
+export const ExportProfile = (name: string) => appCall('ExportProfile', name);
+export const ImportProfile = (bundleJson: string) => appCall('ImportProfile', bundleJson);
+export const RevealProfileExport = (path: string) => appCall('RevealProfileExport', path);
+
 export const GetSiteGroups = () => appCall('GetSiteGroups');
 export const GetStats = () => appCall('GetStats');
 export const GetSystemProxyStatus = () => appCall('GetSystemProxyStatus');
@@ -155,6 +175,9 @@ export const SetMigrationEnabled = (enabled: boolean) => appCall('SetMigrationEn
 export const GetMigrationServer = () => appCall('GetMigrationServer');
 export const SetMigrationServer = (server: string) => appCall('SetMigrationServer', server);
 export const TestMigration = (server: string) => appCall('TestMigration', server);
+
+// Config migration report (startup config load; unrelated to the migration proxy mode)
+export const GetLastMigrationReport = () => appCall('GetLastMigrationReport');
 
 // Subscription API
 export const GetSubscriptions = () => appCall('GetSubscriptions');

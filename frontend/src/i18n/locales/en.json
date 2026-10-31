@@ -1,5 +1,6 @@
 {
   "common": {
+    "close": "Close",
     "loading": "Loading...",
     "save": "Save",
     "cancel": "Cancel",
@@ -27,6 +28,8 @@
     "expand_options": "Expand options"
   },
   "sidebar": {
+    "connections": "Live Connections",
+    "profiles": "Profiles",
     "dashboard": "Dashboard",
     "proxies": "Proxies",
     "rules": "Rules",
@@ -62,6 +65,13 @@
     "s6": { "title": "Learn More", "text": "Congrats on finishing the basics! For advanced features (subscription management, custom rules, WireGuard tunnels, etc.) visit the GitHub Wiki, and check the FAQ first when you run into problems." }
   },
   "dashboard": {
+    "migration_report": {
+"title": "Configuration migration report",
+        "changes": "Applied changes",
+        "warnings": "Warnings",
+        "errors": "Errors",
+        "backups": "Backups of the original configuration"
+    },
     "title": "Home",
     "proxy_start": "Start Proxy",
     "proxy_stop": "Stop Proxy",
@@ -225,6 +235,23 @@
     "move_down": "Move Down"
   },
   "rules": {
+    "explain_button": "Test domain",
+    "explain_title": "Rule match test",
+    "explain_subtitle": "Simulates how a domain would be handled; the result is a prediction, not the decision made for a real connection.",
+    "explain_host_label": "Domain",
+    "explain_process_label": "Process (optional)",
+    "explain_run": "Test",
+    "explain_running": "Testing…",
+    "explain_simulated_badge": "Simulated",
+    "explain_host": "Host",
+    "explain_mode": "Mode",
+    "explain_source": "Source",
+    "explain_rule": "Matched rule",
+    "explain_upstream": "Upstream",
+    "explain_dns": "DNS mode",
+    "explain_sni_fake": "Fake SNI",
+    "explain_downgraded": "Global transparent mode downgraded this MITM rule to direct to avoid certificate errors.",
+    "explain_candidates": "Candidate rules (by priority)",
     "title": "Site Rules",
     "add_rule": "Add Rule",
     "search_placeholder": "Search rules, categories, or domains...",
@@ -237,6 +264,9 @@
     "copy_success": "Config Copied",
     "copy_hint": "You can now paste and share directly.",
     "form": {
+      "process": "Per-Application Routing (Process)",
+      "process_placeholder": "e.g. telegram.exe, discord.exe (empty = all applications)",
+      "process_hint": "Applies only to connections from the listed processes (comma separated, case-insensitive). Process rules outrank domain rules; if the process cannot be identified the rule never applies. Empty domain list means all destinations for that process.",
       "name": "Description Name",
       "name_placeholder": "e.g. Google Services",
       "website": "Website Group",
@@ -386,6 +416,9 @@
     }
   },
   "network": {
+    "recovery_recovered": "Leftover system proxy from the previous crashed run detected; network settings restored automatically",
+    "recovery_left": "Leftover system proxy marker detected, but the current system proxy was changed by another program; nothing was modified",
+    "recovery_failed": "Leftover system proxy detected, but recovery failed (administrator rights may be required)",
     "ipv6_title": "IPv6 Detection",
     "ipv6_refresh": "Re-check",
     "ipv6_checking": "Checking...",
@@ -756,5 +789,54 @@
     "test_progress": "Tested {done}/{total}",
     "stop_test": "Stop",
     "node_test_failed": "Node {name} test failed"
+  },
+    "connections": {
+"title": "Live Connections",
+      "count": "{n} connections",
+      "search_placeholder": "Search host / rule / mode",
+      "empty": "No active connections",
+      "no_match": "No matching connections",
+      "col_host": "Host",
+      "col_dst": "Destination",
+      "col_rule": "Rule",
+      "col_mode": "Mode",
+      "col_up": "Up",
+      "col_down": "Down",
+      "col_age": "Age",
+      "col_state": "State",
+      "state_active": "Active",
+      "copy_detail": "Copy connection details",
+      "age_seconds": "{s}s",
+      "age_minutes": "{m}m",
+      "age_hours": "{h}h"
+  },
+  "profiles": {
+"title": "Configuration Profiles",
+      "desc": "Save named configuration snapshots for different networks or usage scenarios (rules and settings stay isolated per profile). Switching stops the proxy and drops active connections first.",
+      "active": "active",
+      "none_active": "no profile active",
+      "create": "Create from current",
+      "create_title": "Create profile",
+      "rename": "Rename",
+      "rename_title": "Rename profile",
+      "duplicate": "Duplicate",
+      "duplicate_title": "Duplicate profile",
+      "switch": "Switch",
+      "switch_confirm_title": "Switch profile",
+      "switch_confirm_desc": "Switching to \"{name}\" stops the proxy and drops all active connections, then replaces the current configuration with this profile's contents (unsaved edits are saved back into the outgoing profile). Restart the proxy manually afterwards. Continue?",
+      "export": "Export",
+      "import": "Import",
+      "name_label": "Profile name",
+      "updated": "updated",
+      "created": "Profile created",
+      "renamed": "Profile renamed",
+      "duplicated": "Profile duplicated",
+      "switched": "Profile switched, proxy stopped",
+      "exported": "Profile exported",
+      "imported": "Profile imported",
+      "imported_with_warnings": "Profile imported with warnings",
+      "import_invalid": "Import failed: invalid profile bundle",
+      "action_failed": "Action failed",
+      "empty": "No profiles yet — create one from the current configuration"
   }
 }

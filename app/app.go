@@ -48,6 +48,8 @@ type App struct {
 	proxyServer         *proxy.ProxyServer
 	certManager         *certmanager.CertManager
 	ruleManager         *proxy.RuleManager
+	settingsPath        string
+	rulesPath           string
 	evolutionTester     *evolution.Tester
 	evolutionTesterMu   sync.Mutex
 	certPath            string
@@ -67,6 +69,10 @@ type App struct {
 	cancel              context.CancelFunc
 	launchedAtStartup   bool
 	autoProxyAtStartup  bool
+	recoveryReport      LeftoverSystemProxyReport
+	// startupMigrationReport 是启动加载配置时产生的迁移/校验报告，
+	// 由 GetLastMigrationReport 暴露给前端展示（无内容时各列表为空）。
+	startupMigrationReport proxy.MigrationReport
 	core                *core.CoreClient
 	tunSysProxyMu       sync.Mutex // 保护 tunRestoreSysProxy：调用方与 StartTUN 异步 goroutine 并发访问
 	tunRestoreSysProxy  bool
@@ -294,6 +300,11 @@ func (a *App) startupV3() {
 			a.appendLog("[startup] Core process synchronized successfully")
 		}
 	}
+
+	// Recover network state a crashed previous instance may have left behind
+	// (system proxy still pointing at a dead listener). Runs before the
+	// auto-enable logic so a re-enable lands on top of a clean state.
+	a.recoveryReport = a.recoverLeftoverSystemProxy()
 
 	if a.ShouldAutoEnableProxyOnAutoStart() {
 		a.appendLog("[startup] AutoStart: Auto-enabling proxy as configured")
