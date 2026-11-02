@@ -10,7 +10,7 @@
 // mutate the machine. We therefore gate every candidate on ALL of:
 //
 //  1. Package allowlist — only known-pure packages are scanned
-//     (common, pkg/platform). The engine packages now live in
+//     (common). The engine packages now live in
 //     github.com/SnishaperTeam/snishaper-core and are tested there.
 //  2. Body taint analysis — a function is excluded if its body (directly or
 //     transitively through a package-local call) references an I/O package
@@ -52,7 +52,6 @@ import (
 
 var scanRoots = []string{
 	"common",
-	"pkg/platform",
 }
 
 // ioPackages are import paths whose use implies a side effect (I/O, process,

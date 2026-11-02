@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"flowweaver/common"
 	"flowweaver/pkg/sysproxy"
 )
 
@@ -170,7 +171,7 @@ func (a *App) EnableSystemProxy() error {
 	if port == 0 {
 		port = 8080
 	}
-	if err := a.waitForProxyListen(addr, 500*time.Millisecond); err != nil {
+	if err := common.WaitForListen(addr, 500*time.Millisecond); err != nil {
 		a.appendLog("[warn] EnableSystemProxy probe timeout (expected if already running): " + err.Error())
 	}
 	err := a.applySystemProxy(true, port)

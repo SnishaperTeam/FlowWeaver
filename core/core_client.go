@@ -84,6 +84,7 @@ func (c *CoreClient) dial() (*rpc.Client, error) {
 }
 
 // Call invokes an RPC method on the core process.
+// shortcut: fresh dial+handshake per call, fine at current poll rates, add a pooled connection if call frequency ever rises
 func (c *CoreClient) Call(method string, args any, reply any) error {
 	client, err := c.dial()
 	if err != nil {

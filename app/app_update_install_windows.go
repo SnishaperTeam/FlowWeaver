@@ -3,12 +3,14 @@
 package app
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unicode/utf16"
 )
 
 // installUpdateAsset dispatches installation of a downloaded update asset
@@ -38,6 +40,10 @@ func (a *App) launchInstaller(localPath string) error {
 	return nil
 }
 
+// createNewConsole is CREATE_NEW_CONSOLE from winbase.h; the stdlib syscall
+// package does not export it.
+const createNewConsole = 0x00000010
+
 func (a *App) installSevenZ(localPath string) error {
 	execPath, err := os.Executable()
 	if err != nil {
@@ -47,31 +53,32 @@ func (a *App) installSevenZ(localPath string) error {
 	if !isDirWritable(execDir) {
 		return fmt.Errorf("dir_not_writable")
 	}
+	a.pendingUpdateMu.Lock()
+	expectedSHA := a.pendingUpdateSHA
+	a.pendingUpdateMu.Unlock()
+	if expectedSHA == "" {
+		return fmt.Errorf("no verified update digest, refusing to install")
+	}
 	base := filepath.Join(os.TempDir(), "flowweaver-update")
 	stage := filepath.Join(base, "stage")
 	os.RemoveAll(stage)
 	if err := os.MkdirAll(stage, 0755); err != nil {
 		return err
 	}
-	script := filepath.Join(base, "apply-update.ps1")
-	content := buildUpdateScript(localPath, stage, execDir, base)
-	bom := append([]byte{0xEF, 0xBB, 0xBF}, []byte(content)...)
-	if err := os.WriteFile(script, bom, 0644); err != nil {
-		return err
-	}
-	// 用 cmd /c start 启动：让 pwsh 拥有独立的新控制台窗口
-	// （直接 exec 启动会继承 GUI 父进程的无效 std 句柄，新窗口收不到输出）
-	launcher := exec.Command("cmd", "/c", "start", "FlowWeaver 更新", "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script)
-	launcher.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
-	if err := launcher.Start(); err != nil {
-		return fmt.Errorf("failed to launch updater script: %v", err)
+	script := buildUpdateScript(localPath, stage, execDir, base, expectedSHA)
+	// 通过 -EncodedCommand 从命令行传入脚本：不再往 %TEMP% 落盘可被同用户
+	// 替换的 .ps1（脚本落盘 + 提权执行 = 换脚本的 TOCTOU 提权窗口）。
+	// CREATE_NEW_CONSOLE 给 powershell 独立控制台窗口：GUI 父进程的 std
+	// 句柄无效，直接继承会丢失脚本输出。
+	cmd := exec.Command("powershell", "-NoProfile", "-EncodedCommand", psEncodeCommand(script))
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNewConsole}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to launch updater: %v", err)
 	}
 	go func() {
-		_ = launcher.Wait()
+		_ = cmd.Wait()
 	}()
-	a.appendLog("[update] 7z update script launched (pwsh, visible window)")
+	a.appendLog("[update] 7z update script launched (powershell, visible window)")
 	return nil
 }
 
@@ -80,11 +87,23 @@ func psQuoteSingle(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
 
-func buildUpdateScript(archive, stage, execDir, base string) string {
+// psEncodeCommand 编码 powershell -EncodedCommand 参数：UTF-16LE 字节做标准 base64。
+func psEncodeCommand(script string) string {
+	u16 := utf16.Encode([]rune(script))
+	b := make([]byte, len(u16)*2)
+	for i, v := range u16 {
+		b[2*i] = byte(v)
+		b[2*i+1] = byte(v >> 8)
+	}
+	return base64.StdEncoding.EncodeToString(b)
+}
+
+func buildUpdateScript(archive, stage, execDir, base, expectedSHA string) string {
 	archive = psQuoteSingle(archive)
 	stage = psQuoteSingle(stage)
 	execDir = psQuoteSingle(execDir)
 	base = psQuoteSingle(base)
+	expectedSHA = psQuoteSingle(expectedSHA)
 	return `$ErrorActionPreference = 'Continue'
 $Host.UI.RawUI.WindowTitle = 'FlowWeaver 便携版更新'
 Write-Host ''
@@ -98,17 +117,27 @@ $stage = '` + stage + `'
 $execDir = '` + execDir + `'
 $base = '` + base + `'
 $exe = Join-Path $execDir 'flowweaver.exe'
+$expected = '` + expectedSHA + `'
 
-Write-Host '[1/5] 正在解压更新包...' -ForegroundColor Yellow
-& tar -xf $archive -C $stage | Out-Null
-if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'flowweaver.exe'))) {
-    Write-Host '[错误] 解压更新包失败。' -ForegroundColor Red
+Write-Host '[1/6] 正在校验更新包哈希...' -ForegroundColor Yellow
+$actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash
+if ($actual -ne $expected) {
+    Write-Host "[错误] 更新包哈希不匹配（应为 $expected，实际为 $actual）。" -ForegroundColor Red
     Read-Host '按回车键退出'
     exit 1
 }
-Write-Host '      解压完成。' -ForegroundColor Green
+Write-Host '      哈希校验通过。' -ForegroundColor Green
 
-Write-Host '[2/5] 正在停止旧进程...' -ForegroundColor Yellow
+Write-Host '[2/6] 正在验证更新包内容...' -ForegroundColor Yellow
+& tar -xf $archive -C $stage
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'flowweaver.exe'))) {
+    Write-Host '[错误] 更新包解压失败或内容不完整。' -ForegroundColor Red
+    Read-Host '按回车键退出'
+    exit 2
+}
+Write-Host '      更新包内容完整。' -ForegroundColor Green
+
+Write-Host '[3/6] 正在停止旧进程...' -ForegroundColor Yellow
 Stop-Process -Name 'flowweaver' -Force -ErrorAction SilentlyContinue
 for ($i = 0; $i -lt 30; $i++) {
     if (-not (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue)) { break }
@@ -116,31 +145,33 @@ for ($i = 0; $i -lt 30; $i++) {
 }
 Write-Host '      旧进程已退出。' -ForegroundColor Green
 
-Write-Host '[3/5] 正在覆盖程序文件...' -ForegroundColor Yellow
+Write-Host '[4/6] 正在覆盖程序文件...' -ForegroundColor Yellow
+if ((Get-FileHash -Path $archive -Algorithm SHA256).Hash -ne $expected) {
+    Write-Host '[错误] 更新包在安装过程中被修改，已中止。' -ForegroundColor Red
+    Read-Host '按回车键退出'
+    exit 3
+}
 $ok = $false
 for ($i = 0; $i -lt 10; $i++) {
-    try {
-        Copy-Item -Path (Join-Path $stage 'flowweaver.exe') -Destination $exe -Force -ErrorAction Stop
-        $ok = $true
-        break
-    } catch { Start-Sleep -Seconds 1 }
+    & tar -xf $archive -C $execDir flowweaver.exe rules
+    if ($LASTEXITCODE -eq 0) { $ok = $true; break }
+    Start-Sleep -Seconds 1
 }
 if (-not $ok) {
-    Write-Host '[错误] 覆盖主程序失败，文件可能仍被占用。' -ForegroundColor Red
+    Write-Host '[错误] 覆盖程序文件失败，文件可能仍被占用。' -ForegroundColor Red
     Read-Host '按回车键退出'
-    exit 2
+    exit 4
 }
-Copy-Item -Path (Join-Path $stage 'rules') -Destination $execDir -Recurse -Force
 Write-Host '      文件已更新（保留个人设置）。' -ForegroundColor Green
 
-Write-Host '[4/5] 正在启动新版本...' -ForegroundColor Yellow
+Write-Host '[5/6] 正在启动新版本...' -ForegroundColor Yellow
 for ($i = 0; $i -lt 30; $i++) {
     if (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue) { break }
     Start-Process -FilePath $exe
     Start-Sleep -Seconds 3
 }
 
-Write-Host '[5/5] 清理临时文件...' -ForegroundColor Yellow
+Write-Host '[6/6] 清理临时文件...' -ForegroundColor Yellow
 Start-Sleep -Seconds 1
 Remove-Item -Path $base -Recurse -Force -ErrorAction SilentlyContinue
 
@@ -152,7 +183,7 @@ if (Get-Process -Name 'flowweaver' -ErrorAction SilentlyContinue) {
     Write-Host ''
     Write-Host '[警告] 未检测到程序进程，请手动打开 FlowWeaver。' -ForegroundColor Yellow
     Read-Host '按回车键退出'
-    exit 3
+    exit 5
 }
 `
 }

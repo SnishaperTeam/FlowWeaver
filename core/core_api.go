@@ -2,6 +2,7 @@ package core
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -31,6 +32,12 @@ const (
 )
 
 var coreRPCToken string
+
+// tokenMatches 常数时间比较 RPC token：短路比较会把前缀匹配长度泄露给
+// 能反复探测固定 RPC 端口的本地进程。
+func tokenMatches(token string) bool {
+	return subtle.ConstantTimeCompare([]byte(token), []byte(coreRPCToken)) == 1
+}
 
 func init() {
 	b := make([]byte, 16)
@@ -94,7 +101,7 @@ type LogsArgs struct {
 }
 
 func (s *coreService) Authenticate(args AuthArgs, reply *BoolReply) error {
-	reply.Value = args.Token == coreRPCToken
+	reply.Value = tokenMatches(args.Token)
 	return nil
 }
 
@@ -102,7 +109,7 @@ func (s *coreService) Authenticate(args AuthArgs, reply *BoolReply) error {
 // token 的客户端（如正在退出的 --serve）不会把复用固定端口的新 core
 // 当成自己的 core，从而既不会误杀它，也不会因 ping 成功而永不退出。
 func (s *coreService) Ping(args AuthArgs, reply *BoolReply) error {
-	reply.Value = args.Token == coreRPCToken
+	reply.Value = tokenMatches(args.Token)
 	return nil
 }
 
@@ -129,7 +136,7 @@ func (s *coreService) ReloadCertificate(_ EmptyArgs, _ *EmptyArgs) error {
 // Shutdown 要求 token：否则任何本地进程都能经固定 RPC 端口杀掉 core，
 // 且旧 --serve 退出流程会误杀刚接任固定端口的新 core。
 func (s *coreService) Shutdown(args AuthArgs, _ *EmptyArgs) error {
-	if args.Token != coreRPCToken {
+	if !tokenMatches(args.Token) {
 		return errors.New("shutdown rejected: invalid token")
 	}
 	if s.stop != nil {
@@ -263,7 +270,7 @@ func verifyHandshake(conn net.Conn) bool {
 		return false
 	}
 	_ = conn.SetReadDeadline(time.Time{})
-	return string(buf) == coreRPCToken
+	return tokenMatches(string(buf))
 }
 
 // RunCoreMain starts the core RPC server. Called from main when --core flag is present.
@@ -296,7 +303,7 @@ func RunCoreMain() error {
 	defer func() {
 		// 仅当文件仍属于本实例时才删除：新实例可能已覆盖写入自己的
 		// token，退出时不得删掉别人的。
-		if data, err := os.ReadFile(tokenPath); err == nil && strings.TrimSpace(string(data)) == coreRPCToken {
+		if data, err := os.ReadFile(tokenPath); err == nil && tokenMatches(strings.TrimSpace(string(data))) {
 			_ = os.Remove(tokenPath)
 		}
 	}()

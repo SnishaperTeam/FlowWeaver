@@ -26,7 +26,7 @@ FlowWeaver is a Windows local proxy tool using ECH Injection, TLS-RF Fragmentati
 - `/app/` — Go backend: App struct, API bindings (`app_api.go`), system proxy (`app_system.go`), autostart
 - `/core/` — Mihomo core process management (`core_client.go`), TUN, admin elevation
 - `/proxy` — Proxy server (MITM, SOCKS5, TLS fragmentation, TUN flow, auto-routing, rules): no longer a local directory, imported from snishaper-core as `proxy`
-- `/pkg/` — Packages: local `platform` only; sysproxy, certmanager (CA), CF IP pool, DoH resolver, netiface, singtun, subscription and TLS fragmentation all live in snishaper-core
+- `/pkg/` — Packages: local `sysproxy` thin facade only; sysproxy implementation, certmanager (CA), CF IP pool, DoH resolver, netiface, singtun, subscription and TLS fragmentation all live in snishaper-core
 - `gfwlist` — GFWList domain list (`github.com/SnishaperTeam/snishaper-core/gfwlist`): local file/reader loading + `IsBlocked` suffix match, wired into core's `proxy/auto_routing.go`. NOTE: online update (fetch from URL, cache write) was removed; only local `gfwlist_cache.txt` (next to rules file) is loaded at startup, no network calls
 - `evolution` — Rule evolution testing (tester, rule generator, result analysis) is `github.com/SnishaperTeam/snishaper-core/evolution`; there is no local `/evolution/` directory
 - `/frontend/src/` — React SPA: 13 pages (Dashboard, Proxies, Rules, Routing, DNS, Evolution, Logs, Connections, Profiles, Settings, Subscription, About, Welcome), all lazily loaded

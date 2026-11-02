@@ -25,11 +25,6 @@ func (a *App) enableCrashLog() string {
 	return common.EnableCrashLog(dir)
 }
 
-// CrashLogPath reports the file that receives a crash report, if enabled.
-func CrashLogPath() string {
-	return common.CrashLogPath()
-}
-
 // noteCrashLog records where a crash report would land, so a user reading the
 // log knows where to look after the app disappears.
 func (a *App) noteCrashLog() {

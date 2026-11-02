@@ -1,10 +1,13 @@
 package common
 
 import (
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/SnishaperTeam/snishaper-core/config"
 )
@@ -82,6 +85,26 @@ func ResolveRuntimeFile(execDir, relPath string) string {
 	return fallback
 }
 
+// WaitForListen dials addr repeatedly until a TCP connection succeeds or the
+// timeout elapses; it returns the last dial error on timeout.
+func WaitForListen(addr string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
+		if err == nil {
+			_ = conn.Close()
+			return nil
+		}
+		lastErr = err
+		time.Sleep(20 * time.Millisecond)
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("timeout")
+	}
+	return lastErr
+}
+
 // UserConfigDir returns the FlowWeaver-specific user config directory
 // (e.g. ~/.config/flowweaver on Linux / XDG). Falls back to $HOME/.config
 // when os.UserConfigDir fails.
@@ -120,7 +143,6 @@ type CertVerifyConfig = config.CertVerifyConfig
 
 var (
 	MapNAT64Addr = config.MapNAT64Addr
-	HalfClose    = config.HalfClose
 )
 
 // UserConfigPath maps a runtime-relative path (e.g. config/settings.json)

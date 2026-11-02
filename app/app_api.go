@@ -145,7 +145,7 @@ func (a *App) StartProxy() error {
 
 	a.UpdateTrayMenu()
 	addr := a.proxyServer.GetListenAddr()
-	if err := a.waitForProxyListen(addr, 2*time.Second); err != nil {
+	if err := common.WaitForListen(addr, 2*time.Second); err != nil {
 		_ = a.proxyServer.Stop()
 		a.appendLog("[error] StartProxy self-check failed: " + err.Error())
 		return fmt.Errorf("proxy started but not listening on %s: %w", addr, err)
@@ -497,13 +497,7 @@ func (a *App) StartTUN() error {
 			a.appendLog("[error] StartTUN failed: " + err.Error())
 			// 启动失败必须把系统代理还原回去：此前已为 TUN 关闭，
 			// 若不复原，用户会同时失去 TUN 与系统代理两条通路，表现为彻底断网。
-			// StartTUN 是异步 RPC，此处 err 为 nil 时仍需用实际状态复核。
-			if a.GetTUNStatus().Running {
-				a.restoreSysProxyAfterTUN()
-			} else {
-				a.appendLog("[warn] StartTUN: TUN not running, restoring managed system proxy")
-				a.restoreSysProxyAfterTUN()
-			}
+			a.restoreSysProxyAfterTUN()
 		}
 		a.emitFrontendState()
 	})
@@ -1289,24 +1283,6 @@ func (a *App) QuitApp() {
 	a.shutdown()
 	a.closeMainWindow()
 	a.quitAppUI()
-}
-
-func (a *App) waitForProxyListen(addr string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond) // Faster dial
-		if err == nil {
-			_ = conn.Close()
-			return nil
-		}
-		lastErr = err
-		time.Sleep(20 * time.Millisecond) // Faster retry
-	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("timeout")
-	}
-	return lastErr
 }
 
 func (a *App) syncCFPoolNAT64Prefix() {

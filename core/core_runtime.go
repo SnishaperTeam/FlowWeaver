@@ -367,7 +367,7 @@ func (r *coreRuntime) startProxy() error {
 		return err
 	}
 	addr := r.proxyServer.GetListenAddr()
-	if err := waitForListen(addr, 2*time.Second); err != nil {
+	if err := common.WaitForListen(addr, 2*time.Second); err != nil {
 		_ = r.proxyServer.Stop()
 		return fmt.Errorf("proxy started but not listening on %s: %w", addr, err)
 	}
@@ -378,12 +378,8 @@ func (r *coreRuntime) startProxy() error {
 func (r *coreRuntime) stopProxy() error {
 	r.proxyOpMu.Lock()
 	defer r.proxyOpMu.Unlock()
-	var errs []error
 	if err := r.proxyServer.Stop(); err != nil {
-		errs = append(errs, err)
-	}
-	if len(errs) > 0 {
-		return errorsJoin(errs...)
+		return err
 	}
 	r.appendLog("[core] proxy stopped")
 	return nil
@@ -599,44 +595,6 @@ func (r *coreRuntime) setListenPort(port int) error {
 	}
 	r.ruleManager.SetListenPort(fmt.Sprintf("%d", port))
 	return r.ruleManager.SaveConfig()
-}
-
-func waitForListen(addr string, timeout time.Duration) error {
-	deadline := time.Now().Add(timeout)
-	var lastErr error
-	for time.Now().Before(deadline) {
-		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
-		if err == nil {
-			_ = conn.Close()
-			return nil
-		}
-		lastErr = err
-		time.Sleep(20 * time.Millisecond)
-	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("timeout")
-	}
-	return lastErr
-}
-
-func errorsJoin(errs ...error) error {
-	var filtered []error
-	for _, err := range errs {
-		if err != nil {
-			filtered = append(filtered, err)
-		}
-	}
-	if len(filtered) == 0 {
-		return nil
-	}
-	if len(filtered) == 1 {
-		return filtered[0]
-	}
-	msgs := make([]string, 0, len(filtered))
-	for _, err := range filtered {
-		msgs = append(msgs, err.Error())
-	}
-	return errors.New(strings.Join(msgs, "; "))
 }
 
 func (r *coreRuntime) popRouteEvents() []RouteEvent {

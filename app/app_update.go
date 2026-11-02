@@ -156,19 +156,21 @@ type DownloadSourceStatus struct {
 	Error     string `json:"error,omitempty"`
 }
 
-func (a *App) MeasureDownloadSources() []DownloadSourceStatus {
-	type target struct{ name, prefix string }
-	targets := []target{{name: "direct", prefix: ""}}
+// measureSources probes every mirror (direct + downloadSourceOrder) against
+// the given probe URL in parallel and returns the statuses sorted: reachable
+// first, then fastest.
+func measureSources(probe string) []DownloadSourceStatus {
+	targets := []downloadSourceEntry{{label: "direct", prefix: ""}}
 	for _, name := range downloadSourceOrder {
-		targets = append(targets, target{name: name, prefix: downloadSources[name]})
+		targets = append(targets, downloadSourceEntry{label: name, prefix: downloadSources[name]})
 	}
 	results := make([]DownloadSourceStatus, len(targets))
 	var wg sync.WaitGroup
 	for i, tg := range targets {
 		wg.Add(1)
-		go func(i int, tg target) {
+		go func(i int, tg downloadSourceEntry) {
 			defer wg.Done()
-			results[i] = measureSourceLatency(tg.name, tg.prefix, sourceProbes[sourcePurposeRelease])
+			results[i] = measureSourceLatency(tg.label, tg.prefix, probe)
 		}(i, tg)
 	}
 	wg.Wait()
@@ -179,6 +181,10 @@ func (a *App) MeasureDownloadSources() []DownloadSourceStatus {
 		return results[i].LatencyMS < results[j].LatencyMS
 	})
 	return results
+}
+
+func (a *App) MeasureDownloadSources() []DownloadSourceStatus {
+	return measureSources(sourceProbes[sourcePurposeRelease])
 }
 
 func measureSourceLatency(name, prefix, probe string) DownloadSourceStatus {
@@ -231,38 +237,14 @@ func (a *App) rankedSourceOrder(purpose string) []string {
 		return cached
 	}
 
-	names := append([]string{"direct"}, downloadSourceOrder...)
-	type sample struct {
-		name      string
-		latencyMS int64
-		ok        bool
-	}
-	samples := make([]sample, len(names))
-	var wg sync.WaitGroup
-	for i, name := range names {
-		wg.Add(1)
-		go func(i int, name string) {
-			defer wg.Done()
-			st := measureSourceLatency(name, downloadSources[name], probe)
-			samples[i] = sample{name: name, latencyMS: st.LatencyMS, ok: st.OK}
-		}(i, name)
-	}
-	wg.Wait()
-
-	sort.SliceStable(samples, func(i, j int) bool {
-		if samples[i].ok != samples[j].ok {
-			return samples[i].ok
-		}
-		return samples[i].latencyMS < samples[j].latencyMS
-	})
-	order := make([]string, 0, len(samples))
-	for _, s := range samples {
-		if s.ok {
-			order = append(order, s.name)
+	order := make([]string, 0)
+	for _, st := range measureSources(probe) {
+		if st.OK {
+			order = append(order, st.Name)
 		}
 	}
 	if len(order) == 0 {
-		order = names
+		order = append([]string{"direct"}, downloadSourceOrder...)
 	}
 
 	a.sourceRankMu.Lock()
@@ -439,16 +421,17 @@ func fetchReleasesFromURL(apiURL string) ([]githubRelease, error) {
 	return releases, nil
 }
 
-// fetchOfficialAssetDigest resolves the expected SHA-256 of a release asset
-// from the official GitHub API. Mirror responses are never used here.
-func (a *App) fetchOfficialAssetDigest(assetURL string) (string, error) {
+// officialAssetDigest scans the official GitHub releases for an asset
+// selected by match and returns its SHA-256. Mirror responses are never used
+// here.
+func (a *App) officialAssetDigest(match func(githubAsset) bool) (string, error) {
 	releases, err := fetchReleasesFromURL(githubAPIBase + "/releases?per_page=100")
 	if err != nil {
 		return "", err
 	}
 	for _, rel := range releases {
 		for _, asset := range rel.Assets {
-			if asset.DownloadURL != assetURL {
+			if !match(asset) {
 				continue
 			}
 			digest := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(asset.Digest)), "sha256:")
@@ -458,7 +441,19 @@ func (a *App) fetchOfficialAssetDigest(assetURL string) (string, error) {
 			return digest, nil
 		}
 	}
-	return "", fmt.Errorf("asset not found on official GitHub releases: %s", assetURL)
+	return "", fmt.Errorf("asset not found on official GitHub releases")
+}
+
+// fetchOfficialAssetDigest resolves the expected SHA-256 of a release asset
+// by its download URL.
+func (a *App) fetchOfficialAssetDigest(assetURL string) (string, error) {
+	return a.officialAssetDigest(func(asset githubAsset) bool { return asset.DownloadURL == assetURL })
+}
+
+// fetchOfficialAssetDigestByName resolves the expected SHA-256 of a release
+// asset by its file name, for callers that only have a local path.
+func (a *App) fetchOfficialAssetDigestByName(name string) (string, error) {
+	return a.officialAssetDigest(func(asset githubAsset) bool { return asset.Name == name })
 }
 
 func resolveChannelRelease(releases []githubRelease, channel string) *githubRelease {
@@ -928,20 +923,36 @@ func (a *App) setPendingUpdateVerified(path, expectedSHA string) {
 	a.pendingUpdateSHA = expectedSHA
 }
 
-func (a *App) InstallUpdateAsset(localPath string) error {
-	// Re-verify the pending download before executing it, so a file swapped
-	// or modified on disk after the download cannot be installed.
+// verifyInstallAsset ensures the file about to be executed matches a SHA-256
+// from the official GitHub API: the in-memory pending digest when it applies,
+// otherwise one resolved by asset file name (fresh process, e.g. the CLI
+// `update install <path>` flow). This closes the gap of a file swapped or
+// modified on disk after the download.
+func (a *App) verifyInstallAsset(localPath string) error {
 	a.pendingUpdateMu.Lock()
 	pendingPath, expectedSHA := a.pendingUpdatePath, a.pendingUpdateSHA
 	a.pendingUpdateMu.Unlock()
-	if expectedSHA != "" && strings.EqualFold(localPath, pendingPath) {
-		sum, err := fileSHA256Hex(localPath)
+	if expectedSHA == "" || !strings.EqualFold(localPath, pendingPath) {
+		resolved, err := a.fetchOfficialAssetDigestByName(filepath.Base(localPath))
 		if err != nil {
-			return fmt.Errorf("update integrity re-check failed: %v", err)
+			return fmt.Errorf("cannot verify update file against official GitHub releases: %v", err)
 		}
-		if !strings.EqualFold(sum, expectedSHA) {
-			return fmt.Errorf("update file changed after download (sha256 mismatch), refusing to install")
-		}
+		expectedSHA = resolved
+		a.setPendingUpdateVerified(localPath, expectedSHA)
+	}
+	sum, err := fileSHA256Hex(localPath)
+	if err != nil {
+		return fmt.Errorf("update integrity re-check failed: %v", err)
+	}
+	if !strings.EqualFold(sum, expectedSHA) {
+		return fmt.Errorf("update file changed after download (sha256 mismatch), refusing to install")
+	}
+	return nil
+}
+
+func (a *App) InstallUpdateAsset(localPath string) error {
+	if err := a.verifyInstallAsset(localPath); err != nil {
+		return err
 	}
 	err := a.installUpdateAsset(localPath)
 	if err == nil {
