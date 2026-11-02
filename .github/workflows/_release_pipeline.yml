@@ -64,6 +64,7 @@ jobs:
       RELEASE_BOT_NAME: dongle-china
       RELEASE_BOT_EMAIL: dongle2823@163.com
       SIGNING_READY: ${{ secrets.GPG_PRIVATE_KEY != '' && secrets.GPG_PASSPHRASE != '' }}
+      RELEASE_BOT_READY: ${{ secrets.RELEASE_BOT_APP_ID != '' && secrets.RELEASE_BOT_PRIVATE_KEY != '' }}
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       tag: ${{ steps.resolve.outputs.tag }}
@@ -74,10 +75,25 @@ jobs:
       identity_version: ${{ steps.resolve.outputs.identity_version }}
       skip: ${{ steps.release-check.outputs.skip }}
     steps:
+      # Pushes to main authenticate as the release bot app (in the
+      # main-branch-protection ruleset bypass list); GITHUB_TOKEN pushes
+      # are attributed to github-actions[bot] and can never satisfy the
+      # required status checks on a direct push.
+      - name: Generate release bot token
+        id: bot
+        if: env.RELEASE_BOT_READY == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          permission-contents: write
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          token: ${{ steps.bot.outputs.token || github.token }}
 
       - name: Import release bot signing key
         if: env.SIGNING_READY == 'true'
@@ -779,12 +795,203 @@ jobs:
           retention-days: 3
 
   # ------------------------------------------------------------------
+  # macOS build (macos-26-intel / macos-26): headless CLI plus the
+  # FlowWeaverBar menu bar app, bundled into FlowWeaver.app by
+  # macos/scripts/bundle-app.sh (ad-hoc signed, not notarized — first
+  # launch needs a Gatekeeper allow, see docs/macos-app.md). build.yml's
+  # darwin job verifies the same bundle path; this job stamps release
+  # metadata and attaches the per-arch zips to the release.
+  # ------------------------------------------------------------------
+  build-macos:
+    name: Build macOS/${{ matrix.arch }} (${{ inputs.channel }})
+    needs: check
+    if: needs.check.outputs.skip != 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-26-intel
+            arch: x64
+          - runner: macos-26
+            arch: arm64
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Inject release metadata into manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE '.github/scripts/inject-manifest-release.ps1'
+          if (-not (Test-Path $script)) {
+            Write-Host "::error::inject-manifest-release.ps1 missing: $script"
+            exit 1
+          }
+          & $script -RepoRoot $env:GITHUB_WORKSPACE `
+            -ReleaseVersion "${{ needs.check.outputs.version }}" `
+            -ReleaseChannel "${{ needs.check.outputs.rel_channel }}" `
+            -IdentityVersion "${{ needs.check.outputs.identity_version }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build CLI (build.sh --ci)
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x build.sh
+          ./build.sh --ci --platform darwin --arch "${{ matrix.arch }}" --type cli 2>&1 | tee build.log
+          if grep -Eqi 'aarch64-linux-gnu|osxcross' build.log; then
+            echo "::error::cross toolchain detected in a CI build"
+            exit 1
+          fi
+
+      - name: Bundle FlowWeaver.app (ad-hoc signed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x macos/scripts/bundle-app.sh
+          # --cli reuses the binary built above; bundle-app.sh would
+          # otherwise rebuild it via build.sh.
+          macos/scripts/bundle-app.sh --cli "$PWD/build/bin/cli/Darwin/${{ matrix.arch }}/flowweaver"
+          APP="build/bin/macos/FlowWeaver.app"
+          test -x "$APP/Contents/MacOS/FlowWeaverBar"
+          test -x "$APP/Contents/Resources/bin/flowweaver"
+          test -f "$APP/Contents/Info.plist"
+          test -f "build/bin/macos/FlowWeaver-macos-$(uname -m).zip"
+          echo "::notice::bundled and ad-hoc signed FlowWeaver.app ($(uname -m))"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-artifacts-${{ matrix.arch }}
+          path: build/bin/macos/FlowWeaver-macos-*.zip
+          retention-days: 3
+
+  # ------------------------------------------------------------------
+  # Linux distribution packages (.deb / .rpm / AppImage) for each arch,
+  # using the same packaging scripts as the manual linux-packages.yml
+  # workflow. Uploaded to the release alongside the plain tar.gz
+  # archives. AppImage is best-effort (build-packages.sh warns and
+  # continues); deb/rpm are hard requirements.
+  # ------------------------------------------------------------------
+  build-linux-packages:
+    name: Build Linux packages/${{ matrix.arch }} (${{ inputs.channel }})
+    needs: check
+    if: needs.check.outputs.skip != 'true'
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-26.04
+            arch: amd64
+            path_arch: x64
+          - runner: ubuntu-26.04-arm
+            arch: arm64
+            path_arch: arm64
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install GTK4/WebKitGTK dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - name: Inject release metadata into manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE '.github/scripts/inject-manifest-release.ps1'
+          if (-not (Test-Path $script)) {
+            Write-Host "::error::inject-manifest-release.ps1 missing: $script"
+            exit 1
+          }
+          & $script -RepoRoot $env:GITHUB_WORKSPACE `
+            -ReleaseVersion "${{ needs.check.outputs.version }}" `
+            -ReleaseChannel "${{ needs.check.outputs.rel_channel }}" `
+            -IdentityVersion "${{ needs.check.outputs.identity_version }}"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install nfpm
+        run: go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+
+      - name: Fetch linuxdeploy
+        run: |
+          chmod +x packaging/fetch-linuxdeploy.sh
+          ./packaging/fetch-linuxdeploy.sh "${{ matrix.arch }}"
+
+      - name: Build CLI + GUI
+        run: |
+          set -o pipefail
+          chmod +x build.sh
+          ./build.sh --ci --platform linux --arch "${{ matrix.path_arch }}" --type cli --type gui --install-deps 2>&1 | tee build.log
+          if grep -Eqi 'aarch64-linux-gnu|osxcross' build.log; then
+            echo "::error::cross toolchain detected in a CI build"
+            exit 1
+          fi
+
+      - name: Build packages
+        run: |
+          set -euo pipefail
+          chmod +x packaging/build-packages.sh
+          ./packaging/build-packages.sh "${{ matrix.arch }}" "${{ needs.check.outputs.version }}"
+
+      - name: Verify packages
+        run: |
+          set -euo pipefail
+          out="build/dist/linux/${{ matrix.arch }}"
+          ls -l "$out"
+          for f in \
+            "$out/flowweaver_${{ needs.check.outputs.version }}_${{ matrix.arch }}.deb" \
+            "$out/flowweaver-${{ needs.check.outputs.version }}_${{ matrix.arch }}.rpm"; do
+            if [ ! -f "$f" ]; then echo "::error::missing $f"; exit 1; fi
+          done
+          # deb must carry the desktop entry, the icon and both binaries
+          dpkg-deb -c "$out/flowweaver_${{ needs.check.outputs.version }}_${{ matrix.arch }}.deb" | tee deb.list
+          for want in usr/bin/FlowWeaver usr/bin/flowweaver usr/share/applications/flowweaver.desktop usr/share/icons/hicolor/512x512/apps/flowweaver.png; do
+            grep -q "$want" deb.list || { echo "::error::deb missing $want"; exit 1; }
+          done
+
+      - name: Upload Linux package artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages-${{ matrix.arch }}
+          path: build/dist/linux/${{ matrix.arch }}/
+          retention-days: 3
+
+  # ------------------------------------------------------------------
   # Publish (windows-2025): merge artifacts from all platforms, generate
   # release notes via Ollama, and create the GitHub release.
   # ------------------------------------------------------------------
   publish:
     name: Publish Release (${{ inputs.channel }})
-    needs: [check, build-windows, build-linux, build-cli]
+    needs: [check, build-windows, build-linux, build-cli, build-macos, build-linux-packages]
     if: needs.check.outputs.skip != 'true'
     runs-on: windows-2025
     permissions:
@@ -826,6 +1033,20 @@ jobs:
         with:
           name: cli-artifacts
           path: staging
+
+      - name: Download macOS artifacts (every architecture)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: macos-artifacts-*
+          path: staging
+          merge-multiple: true
+
+      - name: Download Linux package artifacts (every architecture)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: linux-packages-*
+          path: staging
+          merge-multiple: true
 
       - name: Determine previous release tag
         id: prev-tag
@@ -1060,12 +1281,33 @@ jobs:
                     $exe = if ($os -eq 'windows') { 'flowweaver.exe' } else { './flowweaver' }
                     return "CLI (headless): $osLabel $archLabel, extract and run $exe, includes config/ and rules/ seed files"
                 }
+                '^FlowWeaver-macos-(x86_64|arm64)\.zip$' {
+                    $a = $Matches[1]
+                    $label = if ($a -eq 'x86_64') { 'Intel' } else { 'Apple Silicon' }
+                    return "macOS menu bar app ($label): FlowWeaver.app with FlowWeaverBar + headless CLI, ad-hoc signed but not notarized - first launch needs a Gatekeeper allow (see docs/macos-app.md)"
+                }
+                '^flowweaver_.*_(amd64|arm64)\.deb$' {
+                    $a = $Matches[1]
+                    $label = if ($a -eq 'amd64') { 'amd64' } else { 'ARM64' }
+                    return "Linux Debian package ($label): installs GUI + CLI with desktop entry (deb)"
+                }
+                '^flowweaver-.*_(amd64|arm64)\.rpm$' {
+                    $a = $Matches[1]
+                    $label = if ($a -eq 'amd64') { 'amd64' } else { 'ARM64' }
+                    return "Linux RPM package ($label): installs GUI + CLI with desktop entry (rpm)"
+                }
+                '^FlowWeaver-.*-(amd64|arm64)\.AppImage$' {
+                    $a = $Matches[1]
+                    $label = if ($a -eq 'amd64') { 'amd64' } else { 'ARM64' }
+                    return "Linux AppImage ($label): self-contained GUI, download, chmod +x and run"
+                }
                 default { return 'Release artifact' }
             }
           }
 
           # Fixed order: installers, signed bundle, unsigned MSIX, Windows
-          # portables, Linux portables, then every CLI target by name.
+          # portables, Linux portables, CLI targets, macOS app zips, then
+          # the Linux distribution packages by name.
           $ordered = @()
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter '*Setup.exe' -ErrorAction SilentlyContinue
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'dongle.*.7z' -ErrorAction SilentlyContinue
@@ -1073,6 +1315,10 @@ jobs:
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-windows-*.7z' -ErrorAction SilentlyContinue | Sort-Object Name
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-linux-*.tar.gz' -ErrorAction SilentlyContinue | Sort-Object Name
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-cli-*.7z' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'FlowWeaver-macos-*.zip' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver_*.deb' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-*.rpm' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'FlowWeaver-*.AppImage' -ErrorAction SilentlyContinue | Sort-Object Name
 
           $listed = @{}
           foreach ($file in $ordered) {
@@ -1135,7 +1381,11 @@ jobs:
             (Join-Path $assetsDir 'dongle.*.7z'),
             (Join-Path $assetsDir 'flowweaver-windows-*.7z'),
             (Join-Path $assetsDir 'flowweaver-linux-*.tar.gz'),
-            (Join-Path $assetsDir 'flowweaver-cli-*.7z')
+            (Join-Path $assetsDir 'flowweaver-cli-*.7z'),
+            (Join-Path $assetsDir 'FlowWeaver-macos-*.zip'),
+            (Join-Path $assetsDir 'flowweaver_*.deb'),
+            (Join-Path $assetsDir 'flowweaver-*.rpm'),
+            (Join-Path $assetsDir 'FlowWeaver-*.AppImage')
           )
           $matched = @()
           foreach ($pattern in $patterns) {

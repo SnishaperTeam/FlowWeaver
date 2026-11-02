@@ -1,14 +1,25 @@
 name: cla
 
-# Contributor-agreement gate driven by the SniShaper Policy Bot App identity.
-#   pull_request[opened]   -> exemption check -> sign-guidance comment
-#                             (anchor upsert) + cla-pending label
-#   issue_comment[created] -> PR comments only, non-exempt commenter,
-#                             /agree/i detection (idempotent) ->
+# Contributor-agreement gate driven by the policy-bot App identity.
+#   pull_request_target[opened,reopened] -> exemption check -> sign-guidance
+#                                          comment (anchor upsert) +
+#                                          cla-pending label
+#   issue_comment[created] -> PR comments only: the PR author signs with
+#                             'agree'; a maintainer (OWNER/MEMBER/
+#                             COLLABORATOR association) may also comment
+#                             'agree' to unlock CI on the author's behalf
+#                             (idempotent) ->
 #                             cla-signed label + anchored confirmation reply
+#
+# The guidance flow MUST use pull_request_target, not pull_request: fork PRs
+# hide repository secrets from plain pull_request events, so the policy-bot
+# App token step would always fail exactly for external contributors. This
+# workflow never checks out the fork head - checkout stays on the base ref
+# and the jobs only call the GitHub API - so pull_request_target is safe
+# here.
 on:
-  pull_request:
-    types: [opened]
+  pull_request_target:
+    types: [opened, reopened]
   issue_comment:
     types: [created]
 
@@ -19,7 +30,7 @@ permissions:
 jobs:
   guidance:
     name: Sign-guidance comment (policy-bot)
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -66,7 +77,7 @@ jobs:
           body="<!-- snishaper-bot:cla-guidance -->
           ## 📝 Contributor agreement required
 
-          Thank you for opening this pull request! Before CI can run, please sign the SniShaper contributor agreement.
+          Thank you for opening this pull request! Before CI can run, please sign the FlowWeaver contributor agreement.
 
           Reply to this pull request with a comment containing the word **agree** (e.g. \"I agree\") to confirm that you have read and accept:
 
@@ -97,16 +108,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
           COMMENTER: ${{ github.event.comment.user.login }}
+          COMMENTER_ASSOC: ${{ github.event.comment.author_association }}
           AUTHOR: ${{ github.event.issue.user.login }}
           BODY: ${{ github.event.comment.body }}
         run: |
           set -euo pipefail
           source .github/scripts/bots/common.sh
           ok=false
+          maintainer=false
+          case "$COMMENTER_ASSOC" in
+            OWNER|MEMBER|COLLABORATOR) maintainer=true ;;
+          esac
           if is_exempt "$COMMENTER"; then
             echo "commenter is exempt - ignoring"
-          elif [ "$COMMENTER" != "$AUTHOR" ]; then
-            echo "commenter is not the PR author - ignoring"
+          elif [ "$COMMENTER" != "$AUTHOR" ] && [ "$maintainer" != "true" ]; then
+            echo "commenter is neither the PR author nor a maintainer - ignoring"
           elif ! grep -qi 'agree' <<<"$BODY"; then
             echo "comment does not contain 'agree' - ignoring"
           elif grep -qx 'cla-signed' <<<"$(gh_retry gh api "repos/${GH_REPO}/issues/${PR_NUMBER}/labels" --jq '.[].name')"; then
@@ -128,12 +144,19 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.policy_token.outputs.token }}
           PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENTER: ${{ github.event.comment.user.login }}
+          AUTHOR: ${{ github.event.issue.user.login }}
         run: |
           set -euo pipefail
           source .github/scripts/bots/common.sh
           sync_labels "$PR_NUMBER" "cla-signed" "cla-pending"
-          body="<!-- snishaper-bot:cla-confirmation -->
-          ✅ Contributor agreement signed — thank you! The \`cla-signed\` label has been applied and CI will start automatically."
+          if [ "$COMMENTER" = "$AUTHOR" ]; then
+            body="<!-- snishaper-bot:cla-confirmation -->
+            ✅ Contributor agreement signed — thank you! The \`cla-signed\` label has been applied and CI will start automatically."
+          else
+            body="<!-- snishaper-bot:cla-confirmation -->
+            🔓 CI gate unlocked by maintainer \`@${COMMENTER}\` — the \`cla-signed\` label has been applied and CI will start automatically."
+          fi
           bot_comment "$PR_NUMBER" "snishaper-bot:cla-confirmation" "$body"
 
       - name: Assign reviewers (policy-bot, idempotent)
