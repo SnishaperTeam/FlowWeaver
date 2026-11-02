@@ -1,0 +1,50 @@
+# nfpm 配置模板：一次定义，产出 .deb 与 .rpm。
+# __ARCH__（amd64/arm64）与 __PATH_ARCH__（x64/arm64）由 build-packages.sh
+# 用 sed 替换；不要直接用 nfpm 打包本文件。
+name: flowweaver
+arch: __ARCH__
+platform: linux
+version: __VERSION__
+section: net
+priority: optional
+maintainer: SnishaperTeam <SniShaper@proton.me>
+description: |
+  TLS proxy tool using ECH Injection, TLS-RF Fragmentation, QUIC Connection
+  Rebuilding, and Lightweight Server Mode Relay.
+  .
+  This package installs the FlowWeaver GUI (/usr/bin/FlowWeaver) and the
+  headless CLI (/usr/bin/flowweaver). User configuration and logs stay in
+  ~/.config/flowweaver and are never touched by package upgrades or removal.
+homepage: https://github.com/SnishaperTeam/FlowWeaver
+license: AGPL-3.0
+contents:
+  - src: build/bin/gui/Linux/__PATH_ARCH__/FlowWeaver
+    dst: /usr/bin/FlowWeaver
+    file_info:
+      mode: 0755
+  - src: build/bin/cli/Linux/__PATH_ARCH__/flowweaver
+    dst: /usr/bin/flowweaver
+    file_info:
+      mode: 0755
+  - src: packaging/flowweaver.desktop
+    dst: /usr/share/applications/flowweaver.desktop
+  - src: build/appicon.png
+    dst: /usr/share/icons/hicolor/512x512/apps/flowweaver.png
+    file_info:
+      mode: 0644
+# nfpm 的 depends/recommends 是 Overridables 顶层字段，deb:/rpm: 段内
+# 不存在这两个键；按格式区分依赖要用 overrides（见 nfpm.go Overridables）。
+overrides:
+  deb:
+    # GUI 是 Wails v3 (GTK4 + WebKitGTK 6.0)。WebKit 的 deb 包名在发行版间
+    # 有差异（libwebkitgtk-6.0-4 / -1），故 GTK 用硬依赖、WebKit 走 recommends，
+    # 缺库时 GUI 启动报错信息足够定位，CLI 不受影响。
+    depends:
+      - libgtk-4-1
+    recommends:
+      - libwebkitgtk-6.0-4
+  rpm:
+    # Fedora 40+ 包名。openSUSE 命名不同，用户自行 zypper install。
+    depends:
+      - gtk4
+      - webkitgtk6.0
