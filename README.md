@@ -6,7 +6,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go最低版本-1.27%2B-00ADD8?style=flat&logo=go)](https://golang.org) [![Core](https://img.shields.io/badge/核心库-snishaper--core-00ADD8?style=flat&logo=go)](https://github.com/SnishaperTeam/snishaper-core) [![License](https://img.shields.io/badge/许可证-AGPL--3.0-blue?style=flat&logo=open-source-initiative)](LICENSE) [![GitHub last commit](https://img.shields.io/github/last-commit/SnishaperTeam/FlowWeaver?style=flat&logo=git&label=最后提交)](https://github.com/SnishaperTeam/FlowWeaver/commits/main) [![GitHub Release](https://img.shields.io/github/v/release/SnishaperTeam/FlowWeaver?style=flat&logo=github&label=版本)](https://github.com/SnishaperTeam/FlowWeaver/releases)
 
-本项目提供跨平台支持。详见 **[Platform.md](Platform.md)**。
+本项目提供跨平台支持。详见 **[Platform.md](docs/Platform.md)**。
 
 ---
 
@@ -79,7 +79,7 @@ snishaper proxy on
 
 GUI 用户请从 [Releases](https://github.com/SnishaperTeam/FlowWeaver/releases) 下载对应平台的稳定版本。
 
-各平台的构建方式详见 [Platform.md](Platform.md)。
+各平台的构建方式详见 [Platform.md](docs/Platform.md)。
 
 ---
 
@@ -91,7 +91,7 @@ GUI 用户请从 [Releases](https://github.com/SnishaperTeam/FlowWeaver/releases
 
 ## 贡献
 
-欢迎提交 Issue 与 Pull Request。贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+欢迎提交 Issue 与 Pull Request。贡献前请阅读 [CONTRIBUTING.md](docs/CONTRIBUTING.md) 与 [CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md)。
 
 ---
 

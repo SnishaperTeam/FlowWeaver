@@ -1,6 +1,6 @@
 # Contributing Guide
 
-Thank you for your interest in **SniShaper**! We welcome all forms of contribution, including code, documentation, rules, testing, and feedback.
+Thank you for your interest in **FlowWeaver**! We welcome all forms of contribution, including code, documentation, rules, testing, and feedback.
 
 This guide will help you get started quickly.
 
@@ -60,7 +60,7 @@ This project is built with **Wails v3**.
 ```powershell
 # Clone the repository
 git clone https://github.com/SnishaperTeam/FlowWeaver.git
-cd SniShaper
+cd FlowWeaver
 
 # Install frontend dependencies
 cd frontend
@@ -84,14 +84,14 @@ You can also control the build with command-line parameters, for example:
 .\build_windows.ps1 -Silent
 ```
 
-For more parameter details, see the "Build & Development" section in [README.md](README.md).
+For more parameter details, see the "Build & Development" section in [README.md](../README.md).
 
 Build outputs:
 
 - Frontend assets: `frontend/dist`
-- Windows GUI: `build/bin/gui/Windows/x64/snishaper.exe`
-- Linux GUI: `build/bin/gui/Linux/x64/SniShaper`
-- CLI: `build/bin/cli/{Windows,Linux,Darwin}/{x64,x86,arm64}/snishaper[.exe]`
+- Windows GUI: `build/bin/gui/Windows/x64/flowweaver.exe`
+- Linux GUI: `build/bin/gui/Linux/x64/FlowWeaver`
+- CLI: `build/bin/cli/{Windows,Linux,Darwin}/{x64,x86,arm64}/flowweaver[.exe]`
 
 ## Code Style Guidelines
 

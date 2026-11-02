@@ -6,7 +6,7 @@
 
 **FlowWeaver** is a full-featured local proxy client and gateway built around **Clash subscriptions**, **multi-protocol nodes**, the **TUN virtual NIC** and **WireGuard tunnels**, for users who need stable and controllable access in complex network environments.
 
-This project provides cross-platform support. See **[Platform_EN.md](Platform_EN.md)**.
+This project provides cross-platform support. See **[Platform_EN.md](docs/Platform_EN.md)**.
 
 ---
 
@@ -54,8 +54,8 @@ For most users, we recommend downloading the latest stable Windows build straigh
 
 For the other platforms and for build instructions, see the following documents:
 
-- **[Platform_EN.md](Platform_EN.md)** — per-platform quick start, CLI usage and mobile companions.
-- **[build_EN.md](build_EN.md)** — build guide and the 12-target artifact matrix.
+- **[Platform_EN.md](docs/Platform_EN.md)** — per-platform quick start, CLI usage and mobile companions.
+- **[build_EN.md](docs/build_EN.md)** — build guide and the 12-target artifact matrix.
 
 ---
 
@@ -72,7 +72,7 @@ For detailed technical principles and custom rule guides, refer to the [**GitHub
 
 ## Build and Development
 
-The frontend is currently built with **Wails v3 + React 19 + MUI**, with the core developed in **Go**, supporting Windows / Linux dual-platform GUI and cross-platform CLI for a total of 12 build targets. The full build guide is in **[build_EN.md](build_EN.md)**.
+The frontend is currently built with **Wails v3 + React 19 + MUI**, with the core developed in **Go**, supporting Windows / Linux dual-platform GUI and cross-platform CLI for a total of 12 build targets. The full build guide is in **[build_EN.md](docs/build_EN.md)**.
 
 We will complete a native GUI implementation in an upcoming stable release, to reduce the frontend's memory footprint.
 

@@ -1,8 +1,8 @@
-# SniShaper 构建指南
+# FlowWeaver 构建指南
 
 [中文](build.md) | [English](build_EN.md) | [Русский](build_RU.md)
 
-> 返回 [README](README.md)
+> 返回 [README](../README.md)
 
 本项目基于 **Wails v3 + React 19 + MUI** 构建，后端使用 **Go**。`build.sh`（Linux / macOS / WSL）与 `build_windows.ps1`（Windows）共用同一套目标矩阵、参数语义与输出目录。
 
@@ -22,11 +22,11 @@
 
 | 类型 | 平台 | 架构 | 产物 |
 | --- | --- | --- | --- |
-| CLI | Windows | `x64` / `x86` / `arm64` | `build/bin/cli/Windows/<arch>/snishaper.exe` |
-| CLI | Linux | `x64` / `arm64` | `build/bin/cli/Linux/<arch>/snishaper` |
-| CLI | Darwin | `x64` / `arm64` | `build/bin/cli/Darwin/<arch>/snishaper` |
-| GUI | Windows | `x64` / `x86` / `arm64` | `build/bin/gui/Windows/<arch>/snishaper.exe` |
-| GUI | Linux | `x64` / `arm64` | `build/bin/gui/Linux/<arch>/SniShaper` |
+| CLI | Windows | `x64` / `x86` / `arm64` | `build/bin/cli/Windows/<arch>/flowweaver.exe` |
+| CLI | Linux | `x64` / `arm64` | `build/bin/cli/Linux/<arch>/flowweaver` |
+| CLI | Darwin | `x64` / `arm64` | `build/bin/cli/Darwin/<arch>/flowweaver` |
+| GUI | Windows | `x64` / `x86` / `arm64` | `build/bin/gui/Windows/<arch>/flowweaver.exe` |
+| GUI | Linux | `x64` / `arm64` | `build/bin/gui/Linux/<arch>/FlowWeaver` |
 
 - 7 个 CLI + 5 个 GUI = **12 个目标**；每个目标目录都附带 `config/` 与 `rules/` 种子文件。
 - GUI 不构建 Darwin（Wails 桌面端仅支持 Windows / Linux）；`x86` 仅存在于 Windows。
@@ -90,11 +90,11 @@ Windows 端 PowerShell 对同一个命名参数只绑定一次，重复取值请
 ### 产物校验
 
 ```bash
-file build/bin/cli/Linux/arm64/snishaper      # ELF aarch64
-file build/bin/gui/Linux/arm64/SniShaper      # ELF aarch64
+file build/bin/cli/Linux/arm64/flowweaver      # ELF aarch64
+file build/bin/gui/Linux/arm64/FlowWeaver      # ELF aarch64
 ```
 
-Windows 上可用 `dumpbin /headers build\bin\cli\Windows\arm64\snishaper.exe`，或读取 PE 头 machine 字段（`0x8664`=x64、`0xAA64`=arm64、`0x014C`=x86）。
+Windows 上可用 `dumpbin /headers build\bin\cli\Windows\arm64\flowweaver.exe`，或读取 PE 头 machine 字段（`0x8664`=x64、`0xAA64`=arm64、`0x014C`=x86）。
 
 ---
 
@@ -103,7 +103,7 @@ Windows 上可用 `dumpbin /headers build\bin\cli\Windows\arm64\snishaper.exe`�
 ```powershell
 # 克隆仓库
 git clone https://github.com/SnishaperTeam/FlowWeaver.git
-cd SniShaper
+cd FlowWeaver
 
 # 完整编译（交互模式，自动安装依赖、可选 MSIX 打包）
 powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
@@ -131,7 +131,7 @@ pwsh -ExecutionPolicy Bypass -File .\build_windows.ps1
 **行为说明：**
 
 - **自动提权**：脚本需要管理员权限。若以普通用户运行，会通过 UAC 弹窗自动提权重启自身，并以原样传递所有参数。
-- **预清理**：构建开始前会强制结束正在运行的 `snishaper` 进程，避免文件占用。
+- **预清理**：构建开始前会强制结束正在运行的 `flowweaver` 进程，避免文件占用。
 - **版本同步**：后端编译前从 `Package.appxmanifest` 读取版本号与发布渠道，经 go-winres 同步到版本资源并通过 ldflags 注入；若 go-winres 失败则保留现有版本资源继续构建。后端始终执行 `go mod download`。
 - **MSIX 打包**：依赖 WinApp CLI（`winget install Microsoft.WinAppCLI`）；缺少 `devcert.pfx` 证书时会自动从 manifest 生成并安装证书。已构建的 Windows GUI 架构（`-Arch x64,x86,arm64`）全部作为负载，产出单个混合架构包，输出到 `build/bin/gui/Windows/<name>_<version>_<arch...>.msixbundle`（仅单架构时退化为同名 `.msix`）。
 - **Linux 构建（WSL）**：`-Build linux` 通过 WSL 调用 `build.sh`（默认 GTK4，`-Gtk3` 切换 GTK3，`-Arch` 以 `--arch` 透传）；未检测到 WSL 时输出警告并跳过 Linux 构建。
@@ -193,7 +193,7 @@ sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 ```bash
 # 克隆仓库
 git clone https://github.com/SnishaperTeam/FlowWeaver.git
-cd SniShaper
+cd FlowWeaver
 
 # 交互式菜单（1 GUI / 2 CLI / 3 GUI+CLI + 架构选择）
 ./build.sh
@@ -220,7 +220,7 @@ cd SniShaper
 ./build.sh --cli --arch x86
 ```
 
-构建产物：GUI 输出 `build/bin/gui/Linux/<arch>/SniShaper`（含 `rules/`、`config/` 种子文件，TUN / 系统代理需要 root，运行时 `sudo ./build/bin/gui/Linux/x64/SniShaper`）；CLI 输出 `build/bin/cli/<Platform>/<arch>/snishaper[.exe]`。
+构建产物：GUI 输出 `build/bin/gui/Linux/<arch>/FlowWeaver`（含 `rules/`、`config/` 种子文件，TUN / 系统代理需要 root，运行时 `sudo ./build/bin/gui/Linux/x64/FlowWeaver`）；CLI 输出 `build/bin/cli/<Platform>/<arch>/flowweaver[.exe]`。
 
 ---
 
@@ -233,7 +233,7 @@ cd SniShaper
 <rel:ReleaseChannel>beta.1</rel:ReleaseChannel>
 ```
 
-Windows 与 Linux 构建均从此文件读取版本信息，并通过 ldflags 注入（`snishaper/app.buildVersion`、`snishaper/app.buildChannel`）。仓库中不存在独立的版本 JSON 文件。
+Windows 与 Linux 构建均从此文件读取版本信息，并通过 ldflags 注入（`flowweaver/app.buildVersion`、`flowweaver/app.buildChannel`）。仓库中不存在独立的版本 JSON 文件。
 
 ---
 
@@ -248,9 +248,9 @@ Windows 与 Linux 构建均从此文件读取版本信息，并通过 ldflags �
 构建产物：
 
 - 前端资源位于 `frontend/dist`
-- Windows GUI 位于 `build/bin/gui/Windows/<arch>/snishaper.exe`（默认 x64）
-- Linux GUI 位于 `build/bin/gui/Linux/<arch>/SniShaper`
-- CLI 位于 `build/bin/cli/{Windows,Linux,Darwin}/<arch>/snishaper[.exe]`
+- Windows GUI 位于 `build/bin/gui/Windows/<arch>/flowweaver.exe`（默认 x64）
+- Linux GUI 位于 `build/bin/gui/Linux/<arch>/FlowWeaver`
+- CLI 位于 `build/bin/cli/{Windows,Linux,Darwin}/<arch>/flowweaver[.exe]`
 
 ---
 
@@ -259,7 +259,7 @@ Windows 与 Linux 构建均从此文件读取版本信息，并通过 ldflags �
 双平台 CI 流水线：
 
 - **`build.yml`**：每次 push / PR 触发，在 `windows-2025` 上构建 Windows、在 `ubuntu-24.04` 上构建 Linux，并执行编译与二进制冒烟验证。
-- **`_release_pipeline.yml`**：发布流水线。Windows runner 产出 MSIX 与 `snishaper-windows-amd64.7z` 便携包，Ubuntu runner 产出 `snishaper-linux-amd64.tar.gz`，最后在 Windows runner 合并两个平台的产物并创建 GitHub Release。Release notes 优先由 runner 本地 Ollama（默认 `qwen3.5:2b`）生成摘要；Ollama 不可用时降级为分类 commit 列表。
+- **`_release_pipeline.yml`**：发布流水线。Windows runner 产出 MSIX 与 `flowweaver-windows-amd64.7z` 便携包，Ubuntu runner 产出 `flowweaver-linux-amd64.tar.gz`，最后在 Windows runner 合并两个平台的产物并创建 GitHub Release。Release notes 优先由 runner 本地 Ollama（默认 `qwen3.5:2b`）生成摘要；Ollama 不可用时降级为分类 commit 列表。
 
 ---
 

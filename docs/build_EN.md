@@ -1,8 +1,8 @@
-# SniShaper Build Guide
+# FlowWeaver Build Guide
 
 [中文](build.md) | [English](build_EN.md) | [Русский](build_RU.md)
 
-> Back to [README](README_EN.md)
+> Back to [README](../README_EN.md)
 
 This project is built with **Wails v3 + React 19 + MUI**, with a **Go** backend. `build.sh` (Linux / macOS / WSL) and `build_windows.ps1` (Windows) share one target matrix and output layout.
 
@@ -22,11 +22,11 @@ This project is built with **Wails v3 + React 19 + MUI**, with a **Go** backend.
 
 | Type | Platform | Arch | Output |
 | --- | --- | --- | --- |
-| CLI | Windows | `x64` / `x86` / `arm64` | `build/bin/cli/Windows/<arch>/snishaper.exe` |
-| CLI | Linux | `x64` / `arm64` | `build/bin/cli/Linux/<arch>/snishaper` |
-| CLI | Darwin | `x64` / `arm64` | `build/bin/cli/Darwin/<arch>/snishaper` |
-| GUI | Windows | `x64` / `x86` / `arm64` | `build/bin/gui/Windows/<arch>/snishaper.exe` |
-| GUI | Linux | `x64` / `arm64` | `build/bin/gui/Linux/<arch>/SniShaper` |
+| CLI | Windows | `x64` / `x86` / `arm64` | `build/bin/cli/Windows/<arch>/flowweaver.exe` |
+| CLI | Linux | `x64` / `arm64` | `build/bin/cli/Linux/<arch>/flowweaver` |
+| CLI | Darwin | `x64` / `arm64` | `build/bin/cli/Darwin/<arch>/flowweaver` |
+| GUI | Windows | `x64` / `x86` / `arm64` | `build/bin/gui/Windows/<arch>/flowweaver.exe` |
+| GUI | Linux | `x64` / `arm64` | `build/bin/gui/Linux/<arch>/FlowWeaver` |
 
 7 CLI + 5 GUI = **12 targets**; every target directory also carries the `config/` and `rules/` seed folders. GUI is never built for Darwin, and `x86` exists on Windows only. The GUI needs GTK/WebKit (Linux) and the frontend build, so it only builds on a same-OS native host; the CLI is pure Go (`CGO_ENABLED=0`) and all seven targets can be emitted from one runner without any cross toolchain.
 
@@ -64,7 +64,7 @@ Running with no selection flags opens the interactive wizard (language, type, pl
 
 ### Artifact verification
 
-Verify artifacts with `file build/bin/gui/Linux/arm64/SniShaper` (ELF aarch64) or, on Windows, `dumpbin /headers ...` / the PE machine field (`0x8664` = x64, `0xAA64` = arm64, `0x014C` = x86).
+Verify artifacts with `file build/bin/gui/Linux/arm64/FlowWeaver` (ELF aarch64) or, on Windows, `dumpbin /headers ...` / the PE machine field (`0x8664` = x64, `0xAA64` = arm64, `0x014C` = x86).
 
 ---
 
@@ -73,7 +73,7 @@ Verify artifacts with `file build/bin/gui/Linux/arm64/SniShaper` (ELF aarch64) o
 ```powershell
 # Clone the repository
 git clone https://github.com/SnishaperTeam/FlowWeaver.git
-cd SniShaper
+cd FlowWeaver
 
 # Full compilation (interactive mode, auto-installs deps, optional MSIX)
 powershell -ExecutionPolicy Bypass -File .\build_windows.ps1
@@ -101,7 +101,7 @@ pwsh -ExecutionPolicy Bypass -File .\build_windows.ps1
 **Behavior notes:**
 
 - **Auto-elevation**: The script requires administrator privileges. When run as a regular user, it relaunches itself via a UAC prompt and passes all parameters through unchanged.
-- **Pre-build cleanup**: Any running `snishaper` processes are force-terminated before the build to avoid file locks.
+- **Pre-build cleanup**: Any running `flowweaver` processes are force-terminated before the build to avoid file locks.
 - **Version sync**: Before compiling the backend, the version and release channel are read from `Package.appxmanifest`, synced into the version resource via go-winres and injected via ldflags; if go-winres fails, the existing version resource is kept and the build continues. `go mod download` is always executed.
 - **MSIX packaging**: Requires the WinApp CLI (`winget install Microsoft.WinAppCLI`); if the `devcert.pfx` certificate is missing, one is generated from the manifest and installed automatically. Every Windows GUI architecture that was built (`-Arch x64,x86,arm64`) is passed as payload, yielding a single mixed-architecture package at `build/bin/gui/Windows/<name>_<version>_<arch...>.msixbundle` (a plain `.msix` of the same name when only one architecture is built).
 - **Linux build (WSL)**: `-Build linux` delegates to `build.sh` via WSL (GTK4 by default, `-Gtk3` switches to GTK3, `-Arch` forwarded as `--arch`); if WSL is not found, a warning is printed and the Linux build is skipped.
@@ -163,7 +163,7 @@ sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev
 ```bash
 # Clone the repository
 git clone https://github.com/SnishaperTeam/FlowWeaver.git
-cd SniShaper
+cd FlowWeaver
 
 # Interactive menu (1 GUI / 2 CLI / 3 GUI+CLI + architecture selection)
 ./build.sh
@@ -190,7 +190,7 @@ cd SniShaper
 ./build.sh --cli --arch x86
 ```
 
-Build output is written to `build/bin/gui/Linux/<arch>/SniShaper` (including `rules/` and `config/` seed files). TUN / system proxy require root; run with `sudo ./build/bin/gui/Linux/x64/SniShaper`. CLI binaries land in `build/bin/cli/<Platform>/<Arch>/`.
+Build output is written to `build/bin/gui/Linux/<arch>/FlowWeaver` (including `rules/` and `config/` seed files). TUN / system proxy require root; run with `sudo ./build/bin/gui/Linux/x64/FlowWeaver`. CLI binaries land in `build/bin/cli/<Platform>/<Arch>/`.
 
 ---
 
@@ -203,7 +203,7 @@ The version number and release channel (`release` / `beta` / `alpha` / `rc`) are
 <rel:ReleaseChannel>beta.1</rel:ReleaseChannel>
 ```
 
-Both the Windows and Linux builds read from this file and inject the values via ldflags (`snishaper/app.buildVersion`, `snishaper/app.buildChannel`). There is no separate version JSON file in the repository.
+Both the Windows and Linux builds read from this file and inject the values via ldflags (`flowweaver/app.buildVersion`, `flowweaver/app.buildChannel`). There is no separate version JSON file in the repository.
 
 ---
 
@@ -218,9 +218,9 @@ Both the Windows and Linux builds read from this file and inject the values via 
 Build outputs:
 
 - Frontend assets at `frontend/dist`
-- Windows GUI at `build/bin/gui/Windows/<arch>/snishaper.exe` (x64 by default)
-- Linux GUI at `build/bin/gui/Linux/<arch>/SniShaper`
-- CLI at `build/bin/cli/{Windows,Linux,Darwin}/<arch>/snishaper[.exe]`
+- Windows GUI at `build/bin/gui/Windows/<arch>/flowweaver.exe` (x64 by default)
+- Linux GUI at `build/bin/gui/Linux/<arch>/FlowWeaver`
+- CLI at `build/bin/cli/{Windows,Linux,Darwin}/<arch>/flowweaver[.exe]`
 
 ---
 
@@ -229,7 +229,7 @@ Build outputs:
 Dual-platform CI pipelines:
 
 - **`build.yml`**: Triggered on every push / PR. Builds Windows on `windows-2025` and Linux on `ubuntu-24.04`, then runs compilation and a binary smoke test.
-- **`_release_pipeline.yml`**: Release pipeline. The Windows runner produces the MSIX and `snishaper-windows-amd64.7z` portable archive, the Ubuntu runner produces `snishaper-linux-amd64.tar.gz`, and finally the Windows runner merges both platform artifacts and creates the GitHub Release. Release notes are generated first by a local Ollama instance on the runner (default `qwen3.5:2b`); when Ollama is unavailable, it falls back to a categorized commit list.
+- **`_release_pipeline.yml`**: Release pipeline. The Windows runner produces the MSIX and `flowweaver-windows-amd64.7z` portable archive, the Ubuntu runner produces `flowweaver-linux-amd64.tar.gz`, and finally the Windows runner merges both platform artifacts and creates the GitHub Release. Release notes are generated first by a local Ollama instance on the runner (default `qwen3.5:2b`); when Ollama is unavailable, it falls back to a categorized commit list.
 
 ---
 

@@ -5,7 +5,7 @@
 - Backend only / frontend only: use the legacy 3-tuple `-Build <system>,<mode>,<scope>`, where scope is `backend`, `frontend` or `all` — e.g. `-Build windows,gui,backend`. The scope is the THIRD element: `-Build backend` alone is invalid (`Get-NormalizedPlatform` rejects `backend`).
 - Plan without building: `.\build_windows.ps1 -DryRun -All`
 - Build + MSIX: `.\build_windows.ps1 -All -BuildMsix`
-- Also see `.\build_windows.ps1 -Help` (self-documenting) and the 12-target matrix in build.md / build_EN.md; `build.sh` is the Linux/macOS twin and takes POSIX repeated flags (`--type cli --type gui`)
+- Also see `.\build_windows.ps1 -Help` (self-documenting) and the 12-target matrix in docs/build.md / docs/build_EN.md; `build.sh` is the Linux/macOS twin and takes POSIX repeated flags (`--type cli --type gui`)
 - Headless CLI (linux/WSL TUN test): `$env:GOOS='linux'; $env:CGO_ENABLED='0'; go build -tags "headless with_gvisor" -o build/bin/flowweaver-linux ./cli` (must include `with_gvisor`, otherwise TUN fails with "gVisor is not included in this build") then run in WSL2 as root: `./flowweaver start && ./flowweaver tun on`, test with `curl -k -m 15 <url>`, cleanup `./flowweaver tun off && ./flowweaver stop`; note: `stop` is async, so wait for processes to fully exit (`pgrep -x flowweaver`) before the next `start` — core RPC is token-isolated (a stale instance can no longer kill a newly started core), but a zero-gap restart can still race the TUN device teardown and leave the data plane degraded
 - Frontend dev: `cd frontend && npm run dev`
 - Frontend install: `cd frontend && npm install`
@@ -15,6 +15,8 @@
 - Go vet: `go vet -tags with_gvisor ./...`
 - Frontend type check: `cd frontend && ./node_modules/.bin/tsc --noEmit` (authoritative; `vite build` does NOT run strict type checks, so it can miss TS errors)
 - Tests exist and pass for `flowweaver/app`, `flowweaver/common`, `flowweaver/core` and `flowweaver/internal/rulesguard` (verified: `go test -tags with_gvisor ./...` is green; add new tests beside the package they guard)
+- Linux packages (.deb / .rpm / AppImage): `./packaging/build-packages.sh <amd64|arm64> <version>` after `./build.sh --platform linux --arch <x64|arm64> --type cli --type gui`; `packaging/fetch-linuxdeploy.sh <arch>` fetches the AppImage tool, `.github/workflows/linux-packages.yml` runs it manually in CI
+- macOS menu bar app: `macos/scripts/bundle-app.sh [--cli <path>]` builds `FlowWeaverBar` with `swift build` and bundles `build/bin/macos/FlowWeaver.app` (ad-hoc signed), see docs/macos-app.md
 
 # Project Overview
 
@@ -32,6 +34,9 @@ FlowWeaver is a Windows local proxy tool using ECH Injection, TLS-RF Fragmentati
 - `/frontend/src/` — React SPA: 13 pages (Dashboard, Proxies, Rules, Routing, DNS, Evolution, Logs, Connections, Profiles, Settings, Subscription, About, Welcome), all lazily loaded
 - `/rules/config.json` — Site group rules (~4359 lines), MITM/ECH/SNI-fake configs
 - `/config/settings.json` — App settings (port, TUN, theme, Cloudflare IPs)
+- `/packaging/` — Linux distribution packaging: `nfpm.yaml` template (deb + rpm, arch placeholders substituted by `build-packages.sh`), `flowweaver.desktop`, linuxdeploy fetcher
+- `/macos/` — Swift package for the macOS menu bar app (`FlowWeaverBar`), driven entirely by the headless CLI (`status --json` contract), bundled by `scripts/bundle-app.sh`
+- `/docs/` — user and maintainer documentation (build, platform, packaging, macOS app, profiles, per-app routing, diagnostics export, benchmarks, regression tests; zh/EN/RU per page)
 
 Data flow: Frontend (React HashRouter) → Wails bindings (`EventsOn` + async Go calls) → App API → proxy/core subsystems. Frontend state sync via `app:state_changed` events from `emitFrontendState()`.
 
