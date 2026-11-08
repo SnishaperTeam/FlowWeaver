@@ -120,7 +120,7 @@ jobs:
   #
   # Every job also greps its build log for aarch64-linux-gnu / osxcross and
   # fails if a cross toolchain shows up. This workflow is build + smoke only:
-  # packaging (MSIX / 7z / tar.gz) happens in the release pipeline.
+  # packaging (MSIX / zip / tar.gz) happens in the release pipeline.
   #
   # Runs unconditionally for direct pushes / manual dispatches; for pull
   # requests only when the gate passed.
@@ -165,6 +165,22 @@ jobs:
         id: go
         with:
           go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # setup-go caches the module cache only; the compiler's own object cache
+      # is what makes a rebuild of the same tree cheap, and it survives between
+      # runs only when it is cached explicitly.
+      - name: Cache Go build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/AppData/Local/go-build
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+          key: go-build-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-build-${{ runner.os }}-${{ matrix.arch }}-
+            go-build-${{ runner.os }}-
 
       - uses: actions/setup-node@v7
         with:
@@ -176,10 +192,30 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      # The GTK/WebKitGTK packages are the slowest download in this workflow and
+      # their .deb files are immutable, so they are cached and staged back into
+      # /var/cache/apt/archives before apt runs. Bump the version suffix in the
+      # key whenever the package list below changes.
+      - name: Cache apt packages (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/apt-archives
+          key: apt-${{ matrix.runner }}-v1
+          restore-keys: |
+            apt-${{ matrix.runner }}-
+
       - name: Install Linux GUI dependencies (GTK4 / WebKitGTK)
         if: runner.os == 'Linux'
         timeout-minutes: 10
         run: |
+          set -euo pipefail
+          cache="${{ runner.temp }}/apt-archives"
+          mkdir -p "$cache"
+          if compgen -G "$cache/*.deb" > /dev/null; then
+            sudo cp -n "$cache"/*.deb /var/cache/apt/archives/ || true
+            echo "::notice::restored $(ls -1 "$cache"/*.deb | wc -l) cached .deb files"
+          fi
           # The Azure archive mirror stalls on large packages (observed on
           # libjavascriptcoregtk-6.0-1 on the arm64 runner); point apt at the
           # default Ubuntu archive and fail fast instead of retrying a dead
@@ -198,6 +234,10 @@ jobs:
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             libgtk-4-dev libwebkitgtk-6.0-dev
+          # Collect everything apt downloaded (and the packages it unpacked
+          # from) for the next run.
+          cp -n /var/cache/apt/archives/*.deb "$cache"/ 2>/dev/null || true
+          echo "::notice::apt archive cache now holds $(ls -1 "$cache"/*.deb 2>/dev/null | wc -l) files"
 
       - name: Build GUI (build.sh --ci)
         if: matrix.script == 'sh'
@@ -227,24 +267,39 @@ jobs:
             exit 1
           }
 
-      - name: Build CLI (same platform/arch)
-        if: matrix.platform == 'windows' || matrix.platform == 'linux'
+      - name: Build CLI (Linux matrix entry)
+        if: matrix.platform == 'linux'
         shell: bash
         run: |
           # One CLI target per matrix entry, built natively by the same job
           # as the GUI (pure Go, CGO off) instead of cross-building all five
-          # on a single runner.
-          set -euo pipefail
+          # on a single runner. The Windows entry has its own pwsh step:
+          # build_windows.ps1 cannot be executed by bash.
+          set -o pipefail
           chmod +x build.sh
-          if [ "${{ matrix.platform }}" = "linux" ]; then
-            ./build.sh --ci --platform linux --arch "${{ matrix.arch }}" --type cli 2>&1 | tee build-cli.log
-            test -f "build/bin/cli/Linux/${{ matrix.arch }}/flowweaver"
-            ./build/bin/cli/Linux/${{ matrix.arch }}/flowweaver version
-          else
-            ./build_windows.ps1 -CI -Platform windows -Arch "${{ matrix.arch }}" -Type cli -Silent
-            test -f "build/bin/cli/Windows/${{ matrix.arch }}/flowweaver.exe"
-            ./build/bin/cli/Windows/${{ matrix.arch }}/flowweaver.exe version
-          fi
+          ./build.sh --ci --platform linux --arch "${{ matrix.arch }}" --type cli 2>&1 | tee build-cli.log
+          test -f "build/bin/cli/Linux/${{ matrix.arch }}/flowweaver" || { echo "::error::CLI binary missing"; exit 1; }
+          V="$(./build/bin/cli/Linux/${{ matrix.arch }}/flowweaver version)"
+          echo "::notice::CLI (${{ matrix.arch }}) version: $V"
+          test -n "$V" || { echo "::error::empty CLI version"; exit 1; }
+
+      - name: Build CLI (Windows matrix entry)
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./build_windows.ps1 -CI -Platform windows -Arch "${{ matrix.arch }}" -Type cli -Silent
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bin = ".\build\bin\cli\Windows\${{ matrix.arch }}\flowweaver.exe"
+          if (-not (Test-Path $bin)) { Write-Host "::error::CLI binary missing"; exit 1 }
+          # An ARM64 PE cannot execute on the x64 runner (Windows only emulates
+          # x64 on ARM64, never the other way round), so arm64 gets a PE machine
+          # type assertion in "Verify artifacts (Windows)" instead of a smoke run.
+          if ('${{ matrix.arch }}' -ne 'arm64') {
+            $v = (& $bin version).Trim()
+            Write-Host "::notice::CLI (${{ matrix.arch }}) version: $v"
+            if (-not $v) { Write-Host "::error::empty CLI version"; exit 1 }
+          }
 
       - name: Write build summary
         if: always()
@@ -282,20 +337,38 @@ jobs:
         shell: pwsh
         run: |
           $machines = @{ 0x8664 = 'x64'; 0xAA64 = 'arm64'; 0x014C = 'x86' }
+          function Get-PeMachine([string] $path) {
+            $fs = [System.IO.File]::OpenRead($path)
+            try {
+              $fs.Seek(0x3C, 'Begin') | Out-Null
+              $buf = New-Object byte[] 4
+              $fs.Read($buf, 0, 4) | Out-Null
+              $pe = [BitConverter]::ToUInt32($buf, 0)
+              $fs.Seek($pe + 4, 'Begin') | Out-Null
+              $m = New-Object byte[] 2
+              $fs.Read($m, 0, 2) | Out-Null
+              return [int][BitConverter]::ToUInt16($m, 0)
+            } finally {
+              $fs.Close()
+            }
+          }
           $bins = Get-ChildItem -Path build\bin -Recurse -Include 'flowweaver.exe'
           if (-not $bins) { Write-Host "::error::no binary produced"; exit 1 }
           $bins | ForEach-Object {
-            $fs = [System.IO.File]::OpenRead($_.FullName)
-            $fs.Seek(0x3C, 'Begin') | Out-Null
-            $buf = New-Object byte[] 4
-            $fs.Read($buf, 0, 4) | Out-Null
-            $pe = [BitConverter]::ToUInt32($buf, 0)
-            $fs.Seek($pe + 4, 'Begin') | Out-Null
-            $m = New-Object byte[] 2
-            $fs.Read($m, 0, 2) | Out-Null
-            $fs.Close()
-            $id = [BitConverter]::ToUInt16($m, 0)
+            $id = Get-PeMachine $_.FullName
             Write-Host ("{0} -> {1}" -f $_.FullName, $machines[$id])
+          }
+          # The CLI built in this job cannot be smoke run on an ARM64 matrix
+          # entry, so its PE machine type is what proves the target was right.
+          $cli = "build\bin\cli\Windows\${{ matrix.arch }}\flowweaver.exe"
+          if (Test-Path $cli) {
+            $want = $machines.Keys | Where-Object { $machines[$_] -eq '${{ matrix.arch }}' }
+            $got = Get-PeMachine $cli
+            if ($got -ne $want) {
+              Write-Host ("::error::CLI PE machine is {0}, expected {1}" -f $machines[$got], '${{ matrix.arch }}')
+              exit 1
+            }
+            Write-Host "::notice::CLI PE machine matches ${{ matrix.arch }}"
           }
 
   # ------------------------------------------------------------------
@@ -329,6 +402,19 @@ jobs:
         id: go
         with:
           go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Cache Go build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/AppData/Local/go-build
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+          key: go-build-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('go.sum') }}
+          restore-keys: |
+            go-build-${{ runner.os }}-${{ matrix.arch }}-
+            go-build-${{ runner.os }}-
 
       - name: Build CLI (build.sh --ci)
         shell: bash

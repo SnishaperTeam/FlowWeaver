@@ -3,6 +3,9 @@
 package app
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -42,5 +45,49 @@ func TestBuildUpdateScriptEmbedsExpectedSHA(t *testing.T) {
 	}
 	if !strings.Contains(script, "Get-FileHash") {
 		t.Fatal("expected hash verification in update script")
+	}
+}
+
+func TestBuildUpdateScriptLegacyArchiveExtraction(t *testing.T) {
+	script := buildUpdateScript(`C:\tmp\pkg.7z`, `C:\tmp\stage`, `C:\Users\x`, `C:\tmp\base`, "deadBEEF01")
+	if !strings.Contains(script, "tar -xf") {
+		t.Fatal("legacy 7z script must keep the tar extraction path")
+	}
+}
+
+func TestBuildUpdateScriptPreExtractedPayload(t *testing.T) {
+	script := buildUpdateScript("", `C:\tmp\stage`, `C:\Users\x`, `C:\tmp\base`, "deadBEEF01")
+	if !strings.Contains(script, "$archive = ''") {
+		t.Fatal("empty legacy archive must render as an empty PowerShell string")
+	}
+	if !strings.Contains(script, "更新包已由主程序校验并解压") {
+		t.Fatal("expected the already-extracted branch in the update script")
+	}
+	if !strings.Contains(script, "Test-Path $stagedExe") {
+		t.Fatal("pre-extracted payload must be verified before the swap")
+	}
+}
+
+func TestBuildUpdateScriptIsValidPowerShell(t *testing.T) {
+	pwsh, err := exec.LookPath("pwsh")
+	if err != nil {
+		t.Skip("pwsh not installed")
+	}
+	cases := map[string]string{
+		"zip":    buildUpdateScript("", `C:\tmp\stage`, `C:\Users\x`, `C:\tmp\base`, "deadBEEF01"),
+		"legacy": buildUpdateScript(`C:\tmp\pkg.7z`, `C:\tmp\stage`, `C:\Users\x`, `C:\tmp\base`, "deadBEEF01"),
+	}
+	for name, script := range cases {
+		path := filepath.Join(t.TempDir(), "apply-update.ps1")
+		bom := append([]byte{0xEF, 0xBB, 0xBF}, []byte(script)...)
+		if err := os.WriteFile(path, bom, 0644); err != nil {
+			t.Fatalf("%s: write script: %v", name, err)
+		}
+		check := "$e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('" +
+			strings.ReplaceAll(path, "'", "''") + "',[ref]$null,[ref]$e); if ($e) { $e | ForEach-Object { $_.Message }; exit 1 }"
+		out, err := exec.Command(pwsh, "-NoProfile", "-NonInteractive", "-Command", check).CombinedOutput()
+		if err != nil {
+			t.Fatalf("%s: generated script is not valid PowerShell: %v\n%s", name, err, out)
+		}
 	}
 }

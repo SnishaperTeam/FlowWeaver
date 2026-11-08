@@ -22,7 +22,7 @@
 
 ### Windows
 
-下载 [最新版本](https://github.com/SnishaperTeam/FlowWeaver/releases) 中的 `flowweaver-windows-amd64.7z`（便携版）或 MSIX 安装包，解压 / 安装后运行 `flowweaver.exe`。程序会自动请求管理员权限（TUN 模式需要），如拒绝则 TUN 功能不可用但其他功能正常。
+下载 [最新版本](https://github.com/SnishaperTeam/FlowWeaver/releases) 中的 `flowweaver-windows-amd64.zip`（便携版，Windows 自带解压）或 MSIX 安装包，解压 / 安装后运行 `flowweaver.exe`。程序会自动请求管理员权限（TUN 模式需要），如拒绝则 TUN 功能不可用但其他功能正常。
 
 ### Linux
 
