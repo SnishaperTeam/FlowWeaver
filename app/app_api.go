@@ -87,6 +87,9 @@ func NewApp() *App {
 		core:                   core.NewCoreClient(),
 		ifaces:                 netiface.NewSelector(),
 	}
+	// Download tuning is env-tunable but fixed for the process lifetime:
+	// resolving it here keeps the download goroutines off lazy field writes.
+	a.downloadConcurrency, a.downloadChunkSize = initDownloadTuning()
 
 	a.proxyServer.SetCFRefreshCallback(func() {
 		a.RefreshCloudflareIPPool()
@@ -433,10 +436,11 @@ func (a *App) restoreSysProxyAfterTUN() {
 }
 
 func (a *App) ExportCert() string {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return ""
 	}
-	data, err := a.certManager.ExportCert()
+	data, err := cm.ExportCert()
 	if err != nil {
 		a.appendLog("Export cert error: " + err.Error())
 		return ""
@@ -475,11 +479,12 @@ func (a *App) ImportConfigWithSummary(content string) (proxy.ImportSummary, erro
 }
 
 func (a *App) InstallCA() error {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return fmt.Errorf("cert manager not initialized")
 	}
 	a.appendLog("[cert] InstallCA called")
-	if err := a.certManager.InstallCA(); err != nil {
+	if err := cm.InstallCA(); err != nil {
 		a.appendLog("[cert] InstallCA failed: " + err.Error())
 		return err
 	}
@@ -488,27 +493,30 @@ func (a *App) InstallCA() error {
 }
 
 func (a *App) OpenCAFile() error {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return fmt.Errorf("cert manager not initialized")
 	}
 	a.appendLog("[cert] OpenCAFile called")
-	return a.certManager.OpenCAFile()
+	return cm.OpenCAFile()
 }
 
 func (a *App) OpenCertDir() error {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return fmt.Errorf("cert manager not initialized")
 	}
 	a.appendLog("[cert] OpenCertDir called")
-	return a.certManager.OpenCertDir()
+	return cm.OpenCertDir()
 }
 
 func (a *App) RegenerateCert() error {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return fmt.Errorf("cert manager not initialized")
 	}
 	a.appendLog("[cert] RegenerateCert called")
-	if err := a.certManager.RegenerateCA(); err != nil {
+	if err := cm.RegenerateCA(); err != nil {
 		a.appendLog("[cert] RegenerateCert failed: " + err.Error())
 		return err
 	}
@@ -520,12 +528,13 @@ func (a *App) RegenerateCert() error {
 }
 
 func (a *App) UninstallCert(thumbprint string) error {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		a.appendLog("[cert] UninstallCert failed: cert manager not initialized")
 		return fmt.Errorf("cert manager not initialized")
 	}
 	a.appendLog("[cert] UninstallCert called: " + thumbprint)
-	if err := a.certManager.UninstallCertificate(thumbprint); err != nil {
+	if err := cm.UninstallCertificate(thumbprint); err != nil {
 		a.appendLog("[cert] UninstallCert failed: " + err.Error())
 		return err
 	}
@@ -724,39 +733,61 @@ func (a *App) GetStats() core.StatsReply {
 	}
 }
 
-func (a *App) initCertManager() *certmanager.CertManager {
+// setCertManager stores the cert manager under the protecting mutex; both the
+// startup hook and the lazy GUI path funnel through here.
+func (a *App) setCertManager(cm *certmanager.CertManager) {
+	a.certManagerMu.Lock()
+	a.certManager = cm
+	a.certManagerMu.Unlock()
+}
+
+// ensureCertManager lazily initializes the cert manager for bindings that can
+// run before the startup hook (or in config-only CLI commands). Concurrent
+// callers are serialized by certManagerMu, so the pointer write is race-free.
+func (a *App) ensureCertManager() {
+	a.certManagerMu.Lock()
+	defer a.certManagerMu.Unlock()
 	if a.certManager == nil && a.certPath != "" {
 		if cm, err := certmanager.InitCertManagerFor(coreconfig.Brand{Name: core.ProductName}, a.certPath); err == nil {
 			a.certManager = cm
 		}
 	}
-	return a.certManager
+}
+
+// certManagerSnapshot returns the initialized manager, or nil when the CA
+// cannot be loaded at all.
+func (a *App) certManagerSnapshot() *certmanager.CertManager {
+	a.ensureCertManager()
+	a.certManagerMu.Lock()
+	cm := a.certManager
+	a.certManagerMu.Unlock()
+	return cm
 }
 
 func (a *App) GetCACertPath() string {
-	if cm := a.initCertManager(); cm != nil {
+	if cm := a.certManagerSnapshot(); cm != nil {
 		return cm.GetCACertPath()
 	}
 	return ""
 }
 
 func (a *App) GetCACertPEM() string {
-	if a.certManager != nil {
-		return a.certManager.GetCACertPEM()
+	if cm := a.certManagerSnapshot(); cm != nil {
+		return cm.GetCACertPEM()
 	}
 	return ""
 }
 
 func (a *App) GetCAInstallStatus() CAInstallStatus {
-	a.initCertManager()
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		return CAInstallStatus{
 			CertPath:    a.certPath,
 			Platform:    runtime.GOOS,
 			InstallHelp: "证书状态初始化中",
 		}
 	}
-	status := a.certManager.GetCAInstallStatus()
+	status := cm.GetCAInstallStatus()
 	return CAInstallStatus{
 		Installed:   status.Installed,
 		Platform:    status.Platform,
@@ -766,12 +797,13 @@ func (a *App) GetCAInstallStatus() CAInstallStatus {
 }
 
 func (a *App) GetInstalledCerts() []certmanager.InstalledCert {
-	if a.certManager == nil {
+	cm := a.certManagerSnapshot()
+	if cm == nil {
 		a.appendLog("[cert] GetInstalledCerts failed: cert manager not initialized")
 		return []certmanager.InstalledCert{}
 	}
 	a.appendLog("[cert] GetInstalledCerts called")
-	certs, err := a.certManager.GetInstalledCertificates()
+	certs, err := cm.GetInstalledCertificates()
 	if err != nil {
 		a.appendLog("GetInstalledCertificates error: " + err.Error())
 		return []certmanager.InstalledCert{}

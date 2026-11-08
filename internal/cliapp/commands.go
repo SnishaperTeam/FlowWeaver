@@ -1,6 +1,4 @@
-//go:build headless
-
-package main
+package cliapp
 
 import (
 	"encoding/json"
@@ -16,6 +14,7 @@ import (
 	"flowweaver/pkg/sysproxy"
 	"github.com/SnishaperTeam/snishaper-core/certmanager"
 	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
+	corelog "github.com/SnishaperTeam/snishaper-core/log"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
 )
 
@@ -32,7 +31,8 @@ func opRequireService(out cmdOut) *core.CoreClient {
 
 func listenPort() string {
 	settingsPath, _ := settingsPaths()
-	rm := proxy.NewRuleManager(settingsPath, "")
+	rm := proxy.NewRuleManager(settingsPath, "",
+		proxy.WithLogger(corelog.Std), proxy.WithRouterDebug(os.Getenv("FLOWWEAVER_ROUTER_DEBUG") == "1"))
 	_ = rm.LoadConfig()
 	port := rm.GetListenPort()
 	if port == "" {

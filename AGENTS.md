@@ -66,11 +66,10 @@ Engine packages are consumed from `github.com/SnishaperTeam/snishaper-core` (pin
 
 # Security & Environment
 
-- Dev certificate: `devcert.pfx`, used to sign MSIX packages (gitignored, not present in a fresh clone; `build_windows.ps1` runs `winapp cert generate --install` when it is missing, or CI restores it from the `MSIX_PFX_BASE64` secret). Do not assume it exists.
+- Dev certificate: `devcert.pfx`, used to sign MSIX packages (gitignored, not present in a fresh clone; `build_windows.ps1` runs `winapp cert generate --install` when it is missing, or CI restores it from the `MSIX_PFX_BASE64` secret). Do not assume it exists. Release bundles ship only the public `devcert.cer` — never the pfx or its password
 - Cert manager lives in snishaper-core (`certmanager`); it generates the CA under the per-user config dir (`common.ConfigCertDir()` → `common.UserConfigDir()/cert`, runtime, gitignored) via `certmanager.InitCertManagerFor(config.Brand{Name: core.ProductName}, certPath)`
 - Admin rights required for system proxy registry writes and TUN
 - Registry access via `golang.org/x/sys/windows/registry` (not `reg.exe`)
-- MSIX packaging requires PFX signing cert; CI uses self-signed
 
 # Evidence Required
 

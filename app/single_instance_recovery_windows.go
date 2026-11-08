@@ -95,11 +95,25 @@ func KillStaleOwner(uniqueID string) {
 		return
 	}
 	selfPID := uint32(os.Getpid())
-	for _, pid := range processesWithImage(self) {
-		if pid == 0 || pid == selfPID {
+	entries := processesWithImageEntries(self)
+	// Core children run the same executable with --core, so a name-only kill
+	// would take down the elevated core subprocess together with the stale
+	// instance. A child's parent PID is another live FlowWeaver process —
+	// skip those and let them follow their owner.
+	byPid := make(map[uint32]processEntry32, len(entries))
+	for _, e := range entries {
+		byPid[e.ProcessID] = e
+	}
+	for _, e := range entries {
+		if e.ProcessID == 0 || e.ProcessID == selfPID {
 			continue
 		}
-		proc, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid)
+		if e.ParentProcessID != 0 {
+			if _, isChild := byPid[e.ParentProcessID]; isChild {
+				continue
+			}
+		}
+		proc, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, e.ProcessID)
 		if err != nil {
 			continue
 		}
@@ -293,6 +307,15 @@ func mustGetwd() string {
 }
 
 func processesWithImage(image string) []uint32 {
+	entries := processesWithImageEntries(image)
+	pids := make([]uint32, 0, len(entries))
+	for _, entry := range entries {
+		pids = append(pids, entry.ProcessID)
+	}
+	return pids
+}
+
+func processesWithImageEntries(image string) []processEntry32 {
 	target := strings.ToLower(strings.TrimSpace(image))
 	if target == "" {
 		return nil
@@ -306,20 +329,20 @@ func processesWithImage(image string) []uint32 {
 	entry := processEntry32{}
 	entry.Size = uint32(unsafe.Sizeof(entry))
 
-	var pids []uint32
+	var entries []processEntry32
 	ret, _, _ := siProcess32FirstW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
 	for ret != 0 {
-		pid := entry.ProcessID
+		current := entry
 		entry.Size = uint32(unsafe.Sizeof(entry))
 		ret, _, _ = siProcess32NextW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
-		if pid == 0 || pid == uint32(os.Getpid()) {
+		if current.ProcessID == 0 || current.ProcessID == uint32(os.Getpid()) {
 			continue
 		}
-		if path, err := processImagePath(pid); err == nil && strings.ToLower(path) == target {
-			pids = append(pids, pid)
+		if path, err := processImagePath(current.ProcessID); err == nil && strings.ToLower(path) == target {
+			entries = append(entries, current)
 		}
 	}
-	return pids
+	return entries
 }
 
 func processImagePath(pid uint32) (string, error) {

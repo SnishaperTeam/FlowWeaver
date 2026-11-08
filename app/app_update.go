@@ -802,32 +802,33 @@ const (
 	defaultDownloadChunkSize   = 8 * 1024 * 1024
 )
 
+// initDownloadTuning resolves the env-tunable download settings once at
+// startup, so the download goroutines read plain fields instead of racing on
+// lazy writes.
+func initDownloadTuning() (concurrency int, chunkSize int64) {
+	concurrency = defaultDownloadConcurrency
+	if v, err := strconv.Atoi(strings.TrimSpace(os.Getenv("DOWNLOAD_CONCURRENCY"))); err == nil && v > 0 {
+		concurrency = v
+	}
+	chunkSize = defaultDownloadChunkSize
+	if v, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("DOWNLOAD_CHUNK_SIZE")), 10, 64); err == nil && v > 0 {
+		chunkSize = v
+	}
+	return concurrency, chunkSize
+}
+
 func (a *App) getDownloadConcurrency() int {
 	if a.downloadConcurrency > 0 {
 		return a.downloadConcurrency
 	}
-	n := defaultDownloadConcurrency
-	if s := strings.TrimSpace(os.Getenv("DOWNLOAD_CONCURRENCY")); s != "" {
-		if v, err := strconv.Atoi(s); err == nil && v > 0 {
-			n = v
-		}
-	}
-	a.downloadConcurrency = n
-	return n
+	return defaultDownloadConcurrency
 }
 
 func (a *App) getDownloadChunkSize() int64 {
 	if a.downloadChunkSize > 0 {
 		return a.downloadChunkSize
 	}
-	n := int64(defaultDownloadChunkSize)
-	if s := strings.TrimSpace(os.Getenv("DOWNLOAD_CHUNK_SIZE")); s != "" {
-		if v, err := strconv.ParseInt(s, 10, 64); err == nil && v > 0 {
-			n = v
-		}
-	}
-	a.downloadChunkSize = n
-	return n
+	return defaultDownloadChunkSize
 }
 
 func (a *App) downloadConcurrencyFn() download.ConcurrencyFn {

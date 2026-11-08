@@ -38,22 +38,19 @@ func ownExeName() string {
 	return strings.TrimSuffix(filepath.Base(execPath), ".exe")
 }
 
-// KillPortOccupant 强制结束占用代理端口的进程（含子进程树）。给定的 PID 必须
-// 确实是当前代理端口的占用者，且不能是本程序自己。
-func (a *App) KillPortOccupant(pid int) error {
+// KillPortOccupant 强制结束占用指定端口的进程（含子进程树）。port 用于安装前的
+// 复核：调用方拿到 occupant 到真正点击结束之间，进程可能已退出且 PID 被系统
+// 复用——不复核就会以管理员权限误杀无关进程。
+func (a *App) KillPortOccupant(port, pid int) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid pid: %d", pid)
 	}
 	if pid == os.Getpid() {
 		return fmt.Errorf("refusing to terminate the current process")
 	}
-	port := a.GetListenPort()
-	owner, err := proxy.FindProcessByPort(port)
-	if err != nil {
-		return fmt.Errorf("cannot resolve the occupant of port %d: %w", port, err)
-	}
-	if owner != pid {
-		return fmt.Errorf("pid %d does not hold the proxy port %d (holder is %d)", pid, port, owner)
+	current := a.GetPortOccupant(port)
+	if current == nil || current.PID <= 0 || current.PID != pid {
+		return fmt.Errorf("process %d is no longer listening on port %d; refresh and retry", pid, port)
 	}
 	name, _ := proxy.GetProcessNameByPID(pid)
 	if self := ownExeName(); self != "" && strings.EqualFold(strings.TrimSuffix(name, ".exe"), self) {
