@@ -7,7 +7,6 @@ import (
 
 	"github.com/SnishaperTeam/snishaper-core/evolution"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
-
 )
 
 // ensureEvolutionTester lazily creates the evolution tester on first use.
@@ -46,12 +45,16 @@ func (a *App) StartEvolutionTest(domains []string, enableIPv6 bool) (map[string]
 		return nil, err
 	}
 
-	go func() {
+	a.runSafeAsync("evolution progress", func() {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
 		for {
-			<-ticker.C
+			select {
+			case <-a.ctx.Done():
+				return
+			case <-ticker.C:
+			}
 			currentTask := tester.Snapshot()
 			if currentTask == nil || currentTask.Status != evolution.StatusRunning {
 				break
@@ -85,7 +88,7 @@ func (a *App) StartEvolutionTest(domains []string, enableIPv6 bool) (map[string]
 				}
 			})
 		}
-	}()
+	})
 
 	return map[string]interface{}{
 		"id":     task.ID,

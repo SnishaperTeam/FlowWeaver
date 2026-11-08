@@ -156,18 +156,32 @@ func (a *App) diagnosticConfigPaths() (settingsPath, rulesPath string) {
 	return common.ConfigSettingsPath(execDir), common.ConfigRulesPath(execDir)
 }
 
+func (a *App) exportDir() (string, error) {
+	if a.logDir == "" {
+		return "", fmt.Errorf("no writable export directory")
+	}
+	if err := os.MkdirAll(a.logDir, 0755); err != nil {
+		return "", err
+	}
+	return a.logDir, nil
+}
+
 // ExportDiagnostics writes the diagnostic package as a zip next to the log
 // files and returns its path. It only reads runtime state and config files;
 // a failure here never touches the running proxy.
 func (a *App) ExportDiagnostics() (string, error) {
 	settingsPath, rulesPath := a.diagnosticConfigPaths()
+	outDir, err := a.exportDir()
+	if err != nil {
+		return "", err
+	}
 
 	type diagPackage struct {
-		GeneratedAt  string             `json:"generated_at"`
-		Version      string             `json:"version"`
-		Diagnostics  ProxyDiagnostics   `json:"diagnostics"`
-		SelfCheck    ProxySelfCheckResult `json:"self_check"`
-		Files        []DiagnosticExportFile `json:"files"`
+		GeneratedAt string                 `json:"generated_at"`
+		Version     string                 `json:"version"`
+		Diagnostics ProxyDiagnostics       `json:"diagnostics"`
+		SelfCheck   ProxySelfCheckResult   `json:"self_check"`
+		Files       []DiagnosticExportFile `json:"files"`
 	}
 
 	files := a.PreviewDiagnosticsExport().Files
@@ -198,7 +212,7 @@ func (a *App) ExportDiagnostics() (string, error) {
 	}
 
 	name := "flowweaver-diagnostics-" + time.Now().Format("20060102-150405") + ".zip"
-	outPath := filepath.Join(a.logDir, name)
+	outPath := filepath.Join(outDir, name)
 	f, err := os.Create(outPath)
 	if err != nil {
 		return "", fmt.Errorf("create diagnostics zip: %w", err)
@@ -236,11 +250,18 @@ func (a *App) ExportDiagnostics() (string, error) {
 // selected. Errors are logged, not returned: the export itself already
 // succeeded when this is called.
 func (a *App) RevealDiagnosticsExport(path string) {
-	// Only reveal files this app wrote into its own log dir.
-	if filepath.Dir(path) != a.logDir || filepath.Base(path) != path {
+	if a.logDir == "" {
 		return
 	}
-	if err := common.RevealPath(path); err != nil {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return
+	}
+	dir, err := filepath.Abs(a.logDir)
+	if err != nil || filepath.Dir(absPath) != dir {
+		return
+	}
+	if err := common.RevealPath(absPath); err != nil {
 		a.appendLog("[diagnostics] failed to reveal export: " + err.Error())
 	}
 }

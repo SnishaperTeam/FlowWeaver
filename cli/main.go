@@ -195,8 +195,6 @@ func runService() {
 	if err := a.StartupCLI(); err != nil {
 		log.Fatal(err)
 	}
-	writePid()
-	defer removePid()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
@@ -231,18 +229,6 @@ func monitorCore(a *app.App) {
 		if failStreak >= 5*time.Second {
 			return
 		}
-	}
-}
-
-func writePid() {
-	if ep, err := os.Executable(); err == nil {
-		_ = os.WriteFile(filepath.Join(filepath.Dir(ep), "flowweaver.pid"), []byte(fmt.Sprintf("%d", os.Getpid())), 0644)
-	}
-}
-
-func removePid() {
-	if ep, err := os.Executable(); err == nil {
-		_ = os.Remove(filepath.Join(filepath.Dir(ep), "flowweaver.pid"))
 	}
 }
 

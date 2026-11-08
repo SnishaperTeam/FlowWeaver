@@ -11,6 +11,8 @@ import (
 	"strings"
 	"syscall"
 	"unicode/utf16"
+
+	"flowweaver/common"
 )
 
 // installUpdateAsset dispatches installation of a downloaded update asset
@@ -28,6 +30,9 @@ func (a *App) installUpdateAsset(localPath string) error {
 }
 
 func (a *App) launchInstaller(localPath string) error {
+	if err := a.verifyInstallAsset(localPath); err != nil {
+		return err
+	}
 	a.appendLog("[update] Launching installer: " + localPath)
 	cmd := exec.Command(localPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
@@ -45,6 +50,9 @@ func (a *App) launchInstaller(localPath string) error {
 const createNewConsole = 0x00000010
 
 func (a *App) installSevenZ(localPath string) error {
+	if err := a.verifyInstallAsset(localPath); err != nil {
+		return err
+	}
 	execPath, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("cannot locate application directory: %v", err)
@@ -70,7 +78,7 @@ func (a *App) installSevenZ(localPath string) error {
 	// 替换的 .ps1（脚本落盘 + 提权执行 = 换脚本的 TOCTOU 提权窗口）。
 	// CREATE_NEW_CONSOLE 给 powershell 独立控制台窗口：GUI 父进程的 std
 	// 句柄无效，直接继承会丢失脚本输出。
-	cmd := exec.Command("powershell", "-NoProfile", "-EncodedCommand", psEncodeCommand(script))
+	cmd := exec.Command(common.PowerShellPath(), "-NoProfile", "-EncodedCommand", psEncodeCommand(script))
 	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNewConsole}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to launch updater: %v", err)
@@ -82,7 +90,7 @@ func (a *App) installSevenZ(localPath string) error {
 	return nil
 }
 
-// psQuoteSingle 将字符串安全嵌入 PowerShell 单引号字符串（' 转义为 ''）
+// psQuoteSingle 将字符串安全嵌入 PowerShell 单引号字符串（' 转义为 ”）
 func psQuoteSingle(s string) string {
 	return strings.ReplaceAll(s, "'", "''")
 }
@@ -104,6 +112,7 @@ func buildUpdateScript(archive, stage, execDir, base, expectedSHA string) string
 	execDir = psQuoteSingle(execDir)
 	base = psQuoteSingle(base)
 	expectedSHA = psQuoteSingle(expectedSHA)
+	tarPath := psQuoteSingle(common.TarPath())
 	return `$ErrorActionPreference = 'Continue'
 $Host.UI.RawUI.WindowTitle = 'FlowWeaver 便携版更新'
 Write-Host ''
@@ -118,6 +127,7 @@ $execDir = '` + execDir + `'
 $base = '` + base + `'
 $exe = Join-Path $execDir 'flowweaver.exe'
 $expected = '` + expectedSHA + `'
+$tar = '` + tarPath + `'
 
 Write-Host '[1/6] 正在校验更新包哈希...' -ForegroundColor Yellow
 $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash
@@ -129,7 +139,7 @@ if ($actual -ne $expected) {
 Write-Host '      哈希校验通过。' -ForegroundColor Green
 
 Write-Host '[2/6] 正在验证更新包内容...' -ForegroundColor Yellow
-& tar -xf $archive -C $stage
+& $tar -xf $archive -C $stage
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $stage 'flowweaver.exe'))) {
     Write-Host '[错误] 更新包解压失败或内容不完整。' -ForegroundColor Red
     Read-Host '按回车键退出'
@@ -153,7 +163,7 @@ if ((Get-FileHash -Path $archive -Algorithm SHA256).Hash -ne $expected) {
 }
 $ok = $false
 for ($i = 0; $i -lt 10; $i++) {
-    & tar -xf $archive -C $execDir flowweaver.exe rules
+    & $tar -xf $archive -C $execDir flowweaver.exe rules
     if ($LASTEXITCODE -eq 0) { $ok = $true; break }
     Start-Sleep -Seconds 1
 }

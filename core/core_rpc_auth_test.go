@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"net"
 	"testing"
 )
@@ -25,8 +24,6 @@ func TestCoreRPCRequiresToken(t *testing.T) {
 	var empty EmptyArgs
 	if err := s.Shutdown(AuthArgs{Token: "stale-token"}, &empty); err == nil {
 		t.Fatal("Shutdown must reject a stale token")
-	} else if !errors.Is(err, err) { // 拉进 errors 包并断言非 nil
-		t.Fatal("unreachable")
 	}
 	if stopped {
 		t.Fatal("Shutdown with stale token must not stop the core")

@@ -3,7 +3,8 @@
 package app
 
 // RecoverBrokenSingleInstance recovers from a broken single instance state.
-func RecoverBrokenSingleInstance(string) {
+func RecoverBrokenSingleInstance(string) bool {
+	return false
 }
 
 func AllowSingleInstanceCrossIntegrity(string) {
@@ -18,4 +19,7 @@ func WakeSingleInstance(string) error {
 }
 
 func KillSingleInstance(string) {
+}
+
+func KillStaleOwner(string) {
 }

@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+
+	"flowweaver/common"
 )
 
 func startCoreProcess(execPath string, elevated bool) error {
@@ -25,7 +27,7 @@ func startCoreProcess(execPath string, elevated bool) error {
 		escape(execPath),
 	)
 
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript)
+	cmd := exec.Command(common.PowerShellPath(), "-NoProfile", "-Command", psScript)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd.Run()
 }

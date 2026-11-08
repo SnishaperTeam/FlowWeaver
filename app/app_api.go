@@ -22,6 +22,8 @@ import (
 
 	corelog "github.com/SnishaperTeam/snishaper-core/log"
 
+	"flowweaver/common"
+	"flowweaver/core"
 	"github.com/SnishaperTeam/snishaper-core/certmanager"
 	"github.com/SnishaperTeam/snishaper-core/cfpool"
 	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
@@ -29,8 +31,6 @@ import (
 	"github.com/SnishaperTeam/snishaper-core/netiface"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
 	"github.com/SnishaperTeam/snishaper-core/subscription"
-	"flowweaver/common"
-	"flowweaver/core"
 )
 
 func NewApp() *App {
@@ -73,19 +73,19 @@ func NewApp() *App {
 	proxyServer.SetRuleManager(ruleManager)
 	proxyServer.SetSubscriptionDialer(subStore)
 	a := &App{
-		ctx:                ctx,
-		cancel:             cancel,
-		proxyServer:        proxyServer,
-		ruleManager:        ruleManager,
-		settingsPath:       settingsPath,
-		rulesPath:          rulesPath,
-		certPath:           common.ConfigCertDir(execDir),
-		proxyMarkerPath:    common.ConfigProxyMarker(execDir),
-		launchedAtStartup:  HasLaunchArg("--startup"),
-		autoProxyAtStartup: HasLaunchArg("--autoproxy"),
+		ctx:                    ctx,
+		cancel:                 cancel,
+		proxyServer:            proxyServer,
+		ruleManager:            ruleManager,
+		settingsPath:           settingsPath,
+		rulesPath:              rulesPath,
+		certPath:               common.ConfigCertDir(execDir),
+		proxyMarkerPath:        common.ConfigProxyMarker(execDir),
+		launchedAtStartup:      HasLaunchArg("--startup"),
+		autoProxyAtStartup:     HasLaunchArg("--autoproxy"),
 		startupMigrationReport: migrationReport,
-		core:               core.NewCoreClient(),
-		ifaces:             netiface.NewSelector(),
+		core:                   core.NewCoreClient(),
+		ifaces:                 netiface.NewSelector(),
 	}
 
 	a.proxyServer.SetCFRefreshCallback(func() {
@@ -105,114 +105,30 @@ func (a *App) StartProxy() error {
 	a.proxyOpMu.Lock()
 	defer a.proxyOpMu.Unlock()
 
-	if a.core != nil {
-		err := a.core.StartProxy()
-		a.UpdateTrayMenu()
-		a.emitFrontendState()
-		return err
-	}
-
 	a.appendLog("[action] StartProxy called")
-
-	originalPort := a.GetListenPort()
-	if originalPort == 0 {
-		originalPort = 8080
-	}
-
-	availablePort, err := proxy.EnsurePortAvailable(originalPort, []string{"flowweaver", "usque"})
-	if err != nil {
-		a.appendLog(fmt.Sprintf("[warn] Port probe failed: %v, attempting with original port", err))
-		availablePort = originalPort
-	}
-
-	if availablePort != originalPort {
-		a.appendLog(fmt.Sprintf("[info] Port %d was occupied. Switched to %d.", originalPort, availablePort))
-		if err := a.SetListenPort(availablePort); err != nil {
-			a.appendLog("[warn] Failed to update config with new port: " + err.Error())
-		}
-	}
-
 	a.syncCFPoolNAT64Prefix()
-	err = a.proxyServer.Start()
-	if err != nil {
-		msg := err.Error()
-		if strings.Contains(msg, "Only one usage of each socket address") || strings.Contains(msg, "bind: address already in use") {
-			msg += " (核心启动失败：端口仍被占用，请检查权限或手动杀进程)"
-		}
-		a.appendLog("[error] StartProxy failed: " + msg)
-		return fmt.Errorf("%s", msg)
-	}
-
+	err := a.core.StartProxy()
 	a.UpdateTrayMenu()
-	addr := a.proxyServer.GetListenAddr()
-	if err := common.WaitForListen(addr, 2*time.Second); err != nil {
-		_ = a.proxyServer.Stop()
-		a.appendLog("[error] StartProxy self-check failed: " + err.Error())
-		return fmt.Errorf("proxy started but not listening on %s: %w", addr, err)
-	}
-
-	status := a.GetSystemProxyStatus()
-	if status.Enabled && a.isManagedSystemProxy(status) {
-		a.appendLog("[info] Auto-syncing system proxy configuration after port update...")
-		_ = a.applySystemProxy(true, availablePort)
-	}
-
-	a.appendLog("[action] StartProxy success")
 	a.emitFrontendState()
-	return nil
+	return err
 }
 
 func (a *App) StopProxy() error {
 	a.proxyOpMu.Lock()
 	defer a.proxyOpMu.Unlock()
 
-	if a.core != nil {
-		if a.core.GetTUNStatus().Running {
-			_ = a.core.StopTUN()
-		}
-		err := a.core.StopProxy()
-		a.UpdateTrayMenu()
-		a.emitFrontendState()
-		return err
-	}
-
 	a.appendLog("[action] StopProxy called")
-
-	var errs []error
-	status := a.GetSystemProxyStatus()
-	if status.Enabled && a.isManagedSystemProxy(status) {
-		a.appendLog("[info] Disabling system proxy as proxy core is stopping...")
-		if err := a.applySystemProxy(false, 0); err != nil {
-			errs = append(errs, err)
-		}
+	if a.core.GetTUNStatus().Running {
+		_ = a.core.StopTUN()
 	}
-
-	if err := a.proxyServer.Stop(); err != nil {
-		errs = append(errs, err)
-	}
-
+	err := a.core.StopProxy()
 	a.UpdateTrayMenu()
 	a.emitFrontendState()
-
-	if len(errs) > 0 {
-		var msgs []string
-		for _, e := range errs {
-			msgs = append(msgs, e.Error())
-		}
-		joinedErr := strings.Join(msgs, "; ")
-		a.appendLog("[error] StopProxy failed: " + joinedErr)
-		return fmt.Errorf("%s", joinedErr)
-	}
-
-	a.appendLog("[action] StopProxy success")
-	return nil
+	return err
 }
 
 func (a *App) IsProxyRunning() bool {
-	if a.core != nil {
-		return a.core.IsProxyRunning()
-	}
-	return a.proxyServer.IsRunning()
+	return a.core.IsProxyRunning()
 }
 
 func (a *App) GetListenPort() int {
@@ -233,23 +149,10 @@ func (a *App) restartProxy() error {
 
 	a.appendLog("[action] restartProxy called")
 
-	if a.core != nil {
-		if err := a.core.StopProxy(); err != nil {
-			return err
-		}
-		if err := a.core.StartProxy(); err != nil {
-			return err
-		}
-		a.UpdateTrayMenu()
-		a.emitFrontendState()
-		return nil
-	}
-
-	if err := a.proxyServer.Stop(); err != nil {
+	if err := a.core.StopProxy(); err != nil {
 		return err
 	}
-	time.Sleep(100 * time.Millisecond)
-	if err := a.proxyServer.Start(); err != nil {
+	if err := a.core.StartProxy(); err != nil {
 		return err
 	}
 	a.UpdateTrayMenu()
@@ -280,17 +183,15 @@ func (a *App) SetListenPort(port int) error {
 			return err
 		}
 	} else {
-		if a.core != nil {
-			a.core.ReloadIfRunning()
-		}
+		a.core.ReloadIfRunning()
 	}
 
 	return nil
 }
 
 func (a *App) RevealMainWindow() {
-	if a.wailsApp == nil {
-		a.pendingShow = true
+	if a.wailsAppRef() == nil {
+		a.pendingShow.Store(true)
 		return
 	}
 	// showMainWindow recreates the window when the tracked one is gone, so a
@@ -298,25 +199,14 @@ func (a *App) RevealMainWindow() {
 	a.showMainWindow()
 }
 
-
 func (a *App) GetProxyMode() string {
-	if a.core != nil {
-		return a.core.GetProxyMode()
-	}
-	return a.proxyServer.GetMode()
+	return a.core.GetProxyMode()
 }
 
 func (a *App) SetProxyMode(mode string) error {
 	a.appendLog(fmt.Sprintf("[action] SetProxyMode: %s", mode))
-	if a.core != nil {
-		err := a.core.SetProxyMode(mode)
-		a.emitFrontendState()
-		return err
-	}
-	err := a.proxyServer.SetMode(mode)
-	if err == nil {
-		a.emitFrontendState()
-	}
+	err := a.core.SetProxyMode(mode)
+	a.emitFrontendState()
 	return err
 }
 
@@ -389,9 +279,6 @@ func (a *App) UpdateTUNConfig(cfg proxy.TUNConfig) error {
 	}
 	a.ifaces.Invalidate()
 
-	if a.core == nil {
-		return nil
-	}
 	if !a.core.GetTUNStatus().Running {
 		return nil
 	}
@@ -403,17 +290,11 @@ func (a *App) UpdateTUNConfig(cfg proxy.TUNConfig) error {
 	if err := a.StopTUN(); err != nil {
 		a.appendLog("[warn] UpdateTUNConfig: StopTUN failed: " + err.Error())
 	}
-	return a.StartTUN()
+	return a.startTUNSync()
 }
 
 func (a *App) GetTUNStatus() proxy.TUNStatus {
-	if a.core != nil {
-		return a.core.GetTUNStatus()
-	}
-	return proxy.TUNStatus{
-		Running: false,
-		Message: "core_service_not_running",
-	}
+	return a.core.GetTUNStatus()
 }
 
 func (a *App) GetNetworkInterfaces() []netiface.Descriptor {
@@ -451,9 +332,6 @@ func (a *App) SetTUNInterface(name string) error {
 	}
 	a.ifaces.Invalidate()
 
-	if a.core == nil {
-		return nil
-	}
 	if !a.core.GetTUNStatus().Running {
 		a.appendLog("[action] SetTUNInterface: TUN not running, config saved only")
 		return nil
@@ -463,28 +341,12 @@ func (a *App) SetTUNInterface(name string) error {
 	if err := a.StopTUN(); err != nil {
 		a.appendLog("[warn] SetTUNInterface: StopTUN failed: " + err.Error())
 	}
-	return a.StartTUN()
+	return a.startTUNSync()
 }
 
 func (a *App) StartTUN() error {
-	if a.core == nil {
-		return fmt.Errorf("core client not initialized")
-	}
-
 	a.appendLog("[action] StartTUN called")
-
-	// Disable managed system proxy before TUN to avoid port/resource conflicts
-	status := a.GetSystemProxyStatus()
-	restoreSysProxy := false
-	if status.Enabled && a.isManagedSystemProxy(status) {
-		a.appendLog("[action] StartTUN: disabling managed system proxy before TUN")
-		if err := a.applySystemProxy(false, 0); err != nil {
-			a.appendLog("[warn] StartTUN: failed to disable system proxy: " + err.Error())
-		} else {
-			restoreSysProxy = true
-		}
-	}
-	a.setTUNRestoreSysProxy(restoreSysProxy)
+	a.prepareTUNStart()
 
 	captureEnabled := a.IsLogCaptureEnabled()
 
@@ -504,11 +366,37 @@ func (a *App) StartTUN() error {
 	return nil
 }
 
-func (a *App) StopTUN() error {
-	if a.core == nil {
-		return fmt.Errorf("core client not initialized")
-	}
+func (a *App) startTUNSync() error {
+	a.prepareTUNStart()
 
+	captureEnabled := a.IsLogCaptureEnabled()
+	err := a.core.StartTUN()
+	if err == nil && captureEnabled {
+		_ = a.core.StartLogCapture()
+	}
+	if err != nil {
+		a.appendLog("[error] StartTUN failed: " + err.Error())
+		a.restoreSysProxyAfterTUN()
+	}
+	a.emitFrontendState()
+	return err
+}
+
+func (a *App) prepareTUNStart() {
+	restoreSysProxy := false
+	status := a.GetSystemProxyStatus()
+	if status.Enabled && a.isManagedSystemProxy(status) {
+		a.appendLog("[action] StartTUN: disabling managed system proxy before TUN")
+		if err := a.applySystemProxy(false, 0); err != nil {
+			a.appendLog("[warn] StartTUN: failed to disable system proxy: " + err.Error())
+		} else {
+			restoreSysProxy = true
+		}
+	}
+	a.setTUNRestoreSysProxy(restoreSysProxy)
+}
+
+func (a *App) StopTUN() error {
 	err := a.core.StopTUN()
 	if err != nil {
 		a.appendLog("[error] StopTUN failed: " + err.Error())
@@ -660,7 +548,7 @@ func (a *App) GetActiveConnections() []proxy.ConnInfo {
 }
 
 // ExplainMatch 用与真实连接完全相同的匹配管线模拟 host 的处理决策
-//（不产生路由事件）。全局模式取运行中的 core；process 为可选的
+// （不产生路由事件）。全局模式取运行中的 core；process 为可选的
 // 进程名（per-app 规则模拟）。
 func (a *App) ExplainMatch(host, process string) proxy.MatchExplanation {
 	return a.ruleManager.ExplainMatch(host, a.GetProxyMode(), process)
@@ -1279,7 +1167,7 @@ func (a *App) OpenURL(rawURL string) {
 }
 
 func (a *App) QuitApp() {
-	a.shouldQuit = true
+	a.shouldQuit.Store(true)
 	a.shutdown()
 	a.closeMainWindow()
 	a.quitAppUI()
@@ -1374,7 +1262,7 @@ func (a *App) GetMigrationEnabled() bool {
 }
 
 // GetLastMigrationReport 返回启动加载配置时产生的迁移/校验报告
-//（版本迁移、字段修复、备份路径；Errors 非空表示配置无法安全迁移）。
+// （版本迁移、字段修复、备份路径；Errors 非空表示配置无法安全迁移）。
 // 与 GetMigrationEnabled 的「会话迁移代理模式」无关。
 func (a *App) GetLastMigrationReport() proxy.MigrationReport {
 	return a.startupMigrationReport

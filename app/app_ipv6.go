@@ -40,15 +40,31 @@ func (a *App) checkIPv6Available() bool {
 	return false
 }
 
+func (a *App) cachedIPv6Available(maxAge time.Duration) bool {
+	a.ipv6Mu.Lock()
+	defer a.ipv6Mu.Unlock()
+	if !a.ipv6At.IsZero() && time.Since(a.ipv6At) < maxAge {
+		return a.ipv6Value
+	}
+	value := a.checkIPv6Available()
+	a.ipv6Value = value
+	a.ipv6At = time.Now()
+	return value
+}
+
 // GetIPv6Available returns whether the current network has usable IPv6.
 func (a *App) GetIPv6Available() bool {
-	return a.checkIPv6Available()
+	return a.cachedIPv6Available(time.Minute)
 }
 
 // RefreshIPv6Check re-checks IPv6 availability, notifies the frontend and
 // returns the current result.
 func (a *App) RefreshIPv6Check() bool {
 	available := a.checkIPv6Available()
+	a.ipv6Mu.Lock()
+	a.ipv6Value = available
+	a.ipv6At = time.Now()
+	a.ipv6Mu.Unlock()
 	a.appendLog(fmt.Sprintf("[network] IPv6 availability check: %v", available))
 	a.emitFrontendState()
 	return available

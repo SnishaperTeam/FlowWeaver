@@ -117,7 +117,7 @@ func (s *coreService) GetInfo(_ EmptyArgs, reply *CoreInfoReply) error {
 	reply.PID = os.Getpid()
 	reply.Executable = s.runtime.execPath
 	reply.Elevated = isProcessElevated()
-	
+
 	info, err := os.Stat(s.runtime.execPath)
 	if err == nil {
 		reply.ModTime = info.ModTime().UnixNano()
@@ -354,6 +354,9 @@ func RunCoreMain() error {
 			// Rejected handshakes are closed silently: logging per attempt
 			// would hand a local flooder a disk-fill vector.
 			if !verifyHandshake(conn) {
+				return
+			}
+			if !peerProcessAllowed(conn) {
 				return
 			}
 			server.ServeConn(conn)

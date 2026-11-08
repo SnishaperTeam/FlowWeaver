@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"flowweaver/common"
+	"flowweaver/core"
 	"flowweaver/pkg/sysproxy"
 )
 
@@ -69,38 +70,31 @@ func (a *App) applySystemProxy(enabled bool, port int) error {
 }
 
 func (a *App) applySystemProxySync(enabled bool, port int, sync bool) error {
-	a.systemProxyOpMu.Lock()
-	status := a.GetSystemProxyStatus()
 	expected := fmt.Sprintf("127.0.0.1:%d", port)
 
-	if enabled {
-		if status.Enabled && strings.EqualFold(strings.TrimSpace(status.Server), expected) {
-			a.systemProxyOpMu.Unlock()
-			if err := a.saveManagedSystemProxyMarker(expected); err != nil {
-				a.appendLog("[warn] Failed to save managed system proxy marker: " + err.Error())
+	apply := func() error {
+		a.systemProxyOpMu.Lock()
+		defer a.systemProxyOpMu.Unlock()
+
+		status := a.GetSystemProxyStatus()
+		if enabled {
+			if status.Enabled && strings.EqualFold(strings.TrimSpace(status.Server), expected) {
+				if err := a.saveManagedSystemProxyMarker(expected); err != nil {
+					a.appendLog("[warn] Failed to save managed system proxy marker: " + err.Error())
+				}
+				a.appendLog("[action] EnableSystemProxy skipped: already enabled")
+				return nil
 			}
-			a.appendLog("[action] EnableSystemProxy skipped: already enabled")
-			a.UpdateTrayMenu()
-			a.emitFrontendState()
-			return nil
-		}
-	} else {
-		if !status.Enabled {
-			a.systemProxyOpMu.Unlock()
+		} else if !status.Enabled {
 			if err := a.clearManagedSystemProxyMarker(); err != nil {
 				a.appendLog("[warn] Failed to clear managed system proxy marker: " + err.Error())
 			}
 			a.appendLog("[action] DisableSystemProxy skipped: already disabled")
-			a.UpdateTrayMenu()
-			a.emitFrontendState()
 			return nil
 		}
-	}
-	a.systemProxyOpMu.Unlock()
 
-	a.appendLog(fmt.Sprintf("[action] %s system proxy %s...", map[bool]string{true: "Enabling", false: "Disabling"}[enabled], map[bool]string{true: "synchronously", false: "asynchronously"}[sync]))
+		a.appendLog(fmt.Sprintf("[action] %s system proxy %s...", map[bool]string{true: "Enabling", false: "Disabling"}[enabled], map[bool]string{true: "synchronously", false: "asynchronously"}[sync]))
 
-	work := func() error {
 		var err error
 		if enabled {
 			err = sysproxy.EnableSystemProxy(port)
@@ -124,28 +118,21 @@ func (a *App) applySystemProxySync(enabled bool, port int, sync bool) error {
 		return nil
 	}
 
-	if sync {
-		a.systemProxyOpMu.Lock()
-		err := work()
-		a.systemProxyOpMu.Unlock()
+	finish := func(err error) error {
 		if err != nil {
-			a.appendLog("[error] Sync ApplySystemProxy failed: " + err.Error())
+			a.appendLog("[error] ApplySystemProxy failed: " + err.Error())
 		}
 		a.UpdateTrayMenu()
 		a.emitFrontendState()
 		return err
 	}
 
+	if sync {
+		return finish(apply())
+	}
 	go func() {
-		a.systemProxyOpMu.Lock()
-		defer a.systemProxyOpMu.Unlock()
-		if err := work(); err != nil {
-			a.appendLog("[error] Async ApplySystemProxy failed: " + err.Error())
-		}
-		a.UpdateTrayMenu()
-		a.emitFrontendState()
+		finish(apply())
 	}()
-
 	return nil
 }
 
@@ -312,6 +299,39 @@ func (a *App) ForceCleanup() {
 	a.closeLogFile()
 }
 
+func CleanupOrphanedNetworkState() {
+	c := core.NewCoreClient()
+	if c.Ping() {
+		_ = c.StopTUN()
+		c.ShutdownIfRunning()
+	}
+	execPath, err := os.Executable()
+	if err != nil {
+		return
+	}
+	markerPath := common.ConfigProxyMarker(filepath.Dir(execPath))
+	data, err := os.ReadFile(markerPath)
+	if err != nil {
+		return
+	}
+	var marker struct {
+		ExpectedServer string `json:"expected_server"`
+	}
+	if json.Unmarshal(data, &marker) != nil || marker.ExpectedServer == "" {
+		return
+	}
+	status := sysproxy.GetSystemProxyStatus()
+	if !status.Enabled || !strings.EqualFold(strings.TrimSpace(status.Server), marker.ExpectedServer) {
+		return
+	}
+	if err := sysproxy.DisableSystemProxy(); err != nil {
+		log.Printf("[takeover] cannot disable leftover system proxy: %v", err)
+		return
+	}
+	_ = os.Remove(markerPath)
+	log.Printf("[takeover] disabled leftover system proxy at %s", status.Server)
+}
+
 func (a *App) GetCloseToTray() bool {
 	return a.ruleManager.GetCloseToTray()
 }
@@ -343,7 +363,7 @@ func (a *App) WindowClose() {
 }
 
 func (a *App) HandleWindowClose() {
-	if !a.shouldQuit && a.hasMainWindow() {
+	if !a.shouldQuit.Load() && a.hasMainWindow() {
 		if a.GetHibernateOnClose() {
 			a.HibernateMainWindow()
 			return

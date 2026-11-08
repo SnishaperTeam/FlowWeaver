@@ -17,11 +17,11 @@ func TestVerifyInstallAssetPendingMatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := &App{}
-	a.setPendingUpdateVerified(f, sum)
+	a.setPendingUpdateVerified(f, sum, "v1.0.0")
 	if err := a.verifyInstallAsset(f); err != nil {
 		t.Fatalf("pending match should verify: %v", err)
 	}
-	a.setPendingUpdateVerified(f, strings.Repeat("0", 64))
+	a.setPendingUpdateVerified(f, strings.Repeat("0", 64), "v1.0.0")
 	if err := a.verifyInstallAsset(f); err == nil {
 		t.Fatal("hash mismatch must be rejected")
 	}

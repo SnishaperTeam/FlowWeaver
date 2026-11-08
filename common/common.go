@@ -77,12 +77,17 @@ func (w *RingLogWriter) Snapshot(limit int) []string {
 }
 
 func ResolveRuntimeFile(execDir, relPath string) string {
-	absPath := filepath.Join(execDir, relPath)
-	if _, err := os.Stat(absPath); err == nil {
-		return absPath
+	if execDir != "" {
+		absPath := filepath.Join(execDir, relPath)
+		if _, err := os.Stat(absPath); err == nil {
+			return absPath
+		}
 	}
-	fallback := filepath.Join(".", relPath)
-	return fallback
+	userPath, err := EnsureUserConfig(execDir, relPath)
+	if err != nil {
+		return UserConfigPath(relPath)
+	}
+	return userPath
 }
 
 // WaitForListen dials addr repeatedly until a TCP connection succeeds or the

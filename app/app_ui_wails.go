@@ -21,45 +21,51 @@ const headlessBuild = false
 // so the headless build never links the wails runtime).
 
 func (a *App) wailsAppInstance() *application.App {
-	if a.wailsApp == nil {
+	ref := a.wailsAppRef()
+	if ref == nil {
 		return nil
 	}
-	return a.wailsApp.(*application.App)
+	return ref.(*application.App)
 }
 
 func (a *App) mainWindowInstance() *application.WebviewWindow {
-	if a.mainWindow == nil {
+	ref := a.mainWindowRef()
+	if ref == nil {
 		return nil
 	}
-	return a.mainWindow.(*application.WebviewWindow)
+	return ref.(*application.WebviewWindow)
 }
 
 func (a *App) systemTrayInstance() *application.SystemTray {
-	if a.systemTray == nil {
+	ref := a.systemTrayRef()
+	if ref == nil {
 		return nil
 	}
-	return a.systemTray.(*application.SystemTray)
+	return ref.(*application.SystemTray)
 }
 
 func (a *App) trayMenuV3Instance() *application.Menu {
-	if a.trayMenuV3 == nil {
+	ref := a.trayMenuRef()
+	if ref == nil {
 		return nil
 	}
-	return a.trayMenuV3.(*application.Menu)
+	return ref.(*application.Menu)
 }
 
 func (a *App) proxyItemV3Instance() *application.MenuItem {
-	if a.proxyItemV3 == nil {
+	ref := a.proxyItemRef()
+	if ref == nil {
 		return nil
 	}
-	return a.proxyItemV3.(*application.MenuItem)
+	return ref.(*application.MenuItem)
 }
 
 func (a *App) systemProxyItemV3Instance() *application.MenuItem {
-	if a.systemProxyItemV3 == nil {
+	ref := a.systemProxyItemRef()
+	if ref == nil {
 		return nil
 	}
-	return a.systemProxyItemV3.(*application.MenuItem)
+	return ref.(*application.MenuItem)
 }
 
 // invokeAsync runs fn on the wails event loop; the headless build
@@ -69,19 +75,19 @@ func (a *App) invokeAsync(fn func()) {
 }
 
 // SetWailsApp sets the wails application instance.
-func (a *App) SetWailsApp(w *application.App) { a.wailsApp = w }
+func (a *App) SetWailsApp(w *application.App) { a.setWailsAppRef(w) }
 
 // SetMainWindow sets the main window reference.
 func (a *App) SetMainWindow(w *application.WebviewWindow) {
 	if w != nil {
-		a.mainWindow = w
-		if a.pendingShow {
+		a.setMainWindowRef(w)
+		if a.pendingShow.Load() {
 			a.mainWindowInstance().Show()
 			a.mainWindowInstance().Focus()
-			a.pendingShow = false
+			a.pendingShow.Store(false)
 		}
 	} else {
-		a.mainWindow = nil
+		a.setMainWindowRef(nil)
 		go func() {
 			runtime.GC()
 			debug.FreeOSMemory()
@@ -98,7 +104,8 @@ func (a *App) SetMainWindow(w *application.WebviewWindow) {
 // a stale reference would silently swallow every later attempt to bring the
 // window back.
 func (a *App) liveMainWindow() *application.WebviewWindow {
-	if a.mainWindow == nil {
+	ref := a.mainWindowRef()
+	if ref == nil {
 		return nil
 	}
 	w := a.mainWindowInstance()
@@ -122,7 +129,7 @@ func (a *App) hasMainWindow() bool { return a.liveMainWindow() != nil }
 // state to the adapter a frontend installs instead.
 func (a *App) hasUI() bool { return a.hasMainWindow() }
 
-func (a *App) IsHibernated() bool { return a.mainWindow == nil && !a.shouldQuit }
+func (a *App) IsHibernated() bool { return a.mainWindowRef() == nil && !a.shouldQuit.Load() }
 
 func (a *App) IsMainWindowVisible() bool {
 	w := a.liveMainWindow()
@@ -133,14 +140,14 @@ func (a *App) IsMainWindowVisible() bool {
 }
 
 func (a *App) HibernateMainWindow() {
-	if a.mainWindow == nil {
+	if a.mainWindowRef() == nil {
 		return
 	}
 	w := a.mainWindowInstance()
 	log.Printf("[window] hibernate: releasing the frontend")
 	// Release the reference first: the close handler treats a nil reference as
 	// an app owned teardown and lets the runtime destroy the window.
-	a.mainWindow = nil
+	a.setMainWindowRef(nil)
 	go func() {
 		w.Close()
 		time.Sleep(200 * time.Millisecond)
@@ -156,7 +163,7 @@ func (a *App) ensureMainWindow() *application.WebviewWindow {
 	}
 	wailsApp := a.wailsAppInstance()
 	if wailsApp == nil {
-		a.pendingShow = true
+		a.pendingShow.Store(true)
 		return nil
 	}
 	log.Printf("[window] creating main window")
@@ -191,7 +198,7 @@ func (a *App) AttachMainWindowHandlers(w *application.WebviewWindow) {
 }
 
 func (a *App) handleWindowClosing(event *application.WindowEvent, w *application.WebviewWindow) {
-	if a.shouldQuit || a.mainWindow == nil {
+	if a.shouldQuit.Load() || a.mainWindowRef() == nil {
 		// Quitting, or a teardown this app already owns (hibernate): let the
 		// runtime destroy the window.
 		return
@@ -215,16 +222,16 @@ func (a *App) handleWindowClosing(event *application.WindowEvent, w *application
 }
 
 // SetSystemTray sets the system tray reference.
-func (a *App) SetSystemTray(t *application.SystemTray) { a.systemTray = t }
+func (a *App) SetSystemTray(t *application.SystemTray) { a.setSystemTrayRef(t) }
 
 // SetTrayMenu sets the tray menu reference.
-func (a *App) SetTrayMenu(m *application.Menu) { a.trayMenuV3 = m }
+func (a *App) SetTrayMenu(m *application.Menu) { a.setTrayMenuRef(m) }
 
 // SetProxyMenuItem sets the proxy menu item reference.
-func (a *App) SetProxyMenuItem(i *application.MenuItem) { a.proxyItemV3 = i }
+func (a *App) SetProxyMenuItem(i *application.MenuItem) { a.setProxyItemRef(i) }
 
 // SetSystemProxyMenuItem sets the system proxy menu item reference.
-func (a *App) SetSystemProxyMenuItem(i *application.MenuItem) { a.systemProxyItemV3 = i }
+func (a *App) SetSystemProxyMenuItem(i *application.MenuItem) { a.setSystemProxyItemRef(i) }
 
 // wails service lifecycle entry points.
 
@@ -286,26 +293,26 @@ func (a *App) closeMainWindow() {
 }
 
 func (a *App) quitAppUI() {
-	if a.wailsApp != nil {
+	if a.wailsAppRef() != nil {
 		a.wailsAppInstance().Quit()
 	}
 }
 
 func (a *App) setTrayTooltip(text string) {
-	if a.systemTray != nil {
+	if a.systemTrayRef() != nil {
 		a.systemTrayInstance().SetTooltip(text)
 	}
 }
 
 func (a *App) updateTrayProxyItem(label string, checked bool) {
-	if a.proxyItemV3 != nil {
+	if a.proxyItemRef() != nil {
 		a.proxyItemV3Instance().SetLabel(label)
 		a.proxyItemV3Instance().SetChecked(checked)
 	}
 }
 
 func (a *App) updateTraySysProxyItem(label string) {
-	if a.systemProxyItemV3 != nil {
+	if a.systemProxyItemRef() != nil {
 		a.systemProxyItemV3Instance().SetLabel(label)
 	}
 }

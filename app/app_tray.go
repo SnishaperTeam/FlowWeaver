@@ -133,10 +133,10 @@ func (a *App) buildSystemTray() {
 	})
 	trayItem.SetMenu(menu)
 
-	a.systemTray = trayItem
-	a.trayMenuV3 = menu
-	a.proxyItemV3 = proxyItem
-	a.systemProxyItemV3 = systemProxyItem
+	a.SetSystemTray(trayItem)
+	a.SetTrayMenu(menu)
+	a.SetProxyMenuItem(proxyItem)
+	a.SetSystemProxyMenuItem(systemProxyItem)
 
 	tray.mu.Lock()
 	tray.current = trayItem

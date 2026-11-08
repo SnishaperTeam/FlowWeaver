@@ -5,7 +5,6 @@ package app
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -29,11 +28,12 @@ var (
 )
 
 const (
-	th32csSnapProcess = 0x00000002
-	wmCopyData        = 0x004A
-	msgfltAllow       = 1
-	smtoBlock         = 0x0001
-	smtoAbortIfHung   = 0x0002
+	th32csSnapProcess        = 0x00000002
+	wmCopyData               = 0x004A
+	msgfltAllow              = 1
+	smtoBlock                = 0x0001
+	smtoAbortIfHung          = 0x0002
+	singleInstanceWindowWait = 3 * time.Second
 )
 
 type processEntry32 struct {
@@ -49,10 +49,13 @@ type processEntry32 struct {
 	ExeFile         [windows.MAX_PATH]uint16
 }
 
-// RecoverBrokenSingleInstance recovers from a broken single instance state.
-func RecoverBrokenSingleInstance(uniqueID string) {
+// RecoverBrokenSingleInstance reports whether the mutex of a previous instance
+// is still held while its window never appeared. Killing outright here would
+// hit an instance that is merely still starting up, and a hard kill leaves the
+// TUN adapter and the system proxy behind, so the caller decides.
+func RecoverBrokenSingleInstance(uniqueID string) bool {
 	if strings.TrimSpace(uniqueID) == "" {
-		return
+		return false
 	}
 
 	id := "wails-app-" + uniqueID
@@ -61,33 +64,39 @@ func RecoverBrokenSingleInstance(uniqueID string) {
 	mutexName := id + "-sim"
 
 	if findSingleInstanceWindow(className, windowName) != 0 {
-		return
+		return false
 	}
 
 	mutex, err := windows.OpenMutex(windows.SYNCHRONIZE, false, windows.StringToUTF16Ptr(mutexName))
 	if err != nil {
-		return
+		return false
 	}
 	_ = windows.CloseHandle(mutex)
 
-	time.Sleep(250 * time.Millisecond)
-	if findSingleInstanceWindow(className, windowName) != 0 {
+	deadline := time.Now().Add(singleInstanceWindowWait)
+	for time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+		if findSingleInstanceWindow(className, windowName) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// KillStaleOwner terminates processes running this exact executable that hold
+// the stale single-instance state. Matching the full image path keeps an
+// unrelated installation of the app out of the crossfire.
+func KillStaleOwner(uniqueID string) {
+	if strings.TrimSpace(uniqueID) == "" {
 		return
 	}
-
-	exePath, err := os.Executable()
+	self, err := os.Executable()
 	if err != nil {
 		return
 	}
-	exeName := strings.ToLower(filepath.Base(exePath))
-	if exeName == "" {
-		return
-	}
-
-	currentPID := uint32(os.Getpid())
-	killedAny := false
-	for _, pid := range findProcessesByName(exeName) {
-		if pid == 0 || pid == currentPID {
+	selfPID := uint32(os.Getpid())
+	for _, pid := range processesWithImage(self) {
+		if pid == 0 || pid == selfPID {
 			continue
 		}
 		proc, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, pid)
@@ -96,12 +105,8 @@ func RecoverBrokenSingleInstance(uniqueID string) {
 		}
 		_ = windows.TerminateProcess(proc, 0)
 		_ = windows.CloseHandle(proc)
-		killedAny = true
 	}
-	if killedAny {
-		// Wait for the mutex to be released so a fresh app can acquire it.
-		waitForMutexReleased(mutexName)
-	}
+	waitForMutexReleased("wails-app-" + uniqueID + "-sim")
 }
 
 func waitForMutexReleased(mutexName string) {
@@ -287,7 +292,11 @@ func mustGetwd() string {
 	return dir
 }
 
-func findProcessesByName(name string) []uint32 {
+func processesWithImage(image string) []uint32 {
+	target := strings.ToLower(strings.TrimSpace(image))
+	if target == "" {
+		return nil
+	}
 	snapshot, _, _ := siCreateToolhelp32Snapshot.Call(th32csSnapProcess, 0)
 	if snapshot == uintptr(windows.InvalidHandle) {
 		return nil
@@ -300,12 +309,29 @@ func findProcessesByName(name string) []uint32 {
 	var pids []uint32
 	ret, _, _ := siProcess32FirstW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
 	for ret != 0 {
-		exe := strings.ToLower(windows.UTF16ToString(entry.ExeFile[:]))
-		if exe == name {
-			pids = append(pids, entry.ProcessID)
-		}
+		pid := entry.ProcessID
 		entry.Size = uint32(unsafe.Sizeof(entry))
 		ret, _, _ = siProcess32NextW.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
+		if pid == 0 || pid == uint32(os.Getpid()) {
+			continue
+		}
+		if path, err := processImagePath(pid); err == nil && strings.ToLower(path) == target {
+			pids = append(pids, pid)
+		}
 	}
 	return pids
+}
+
+func processImagePath(pid uint32) (string, error) {
+	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return "", err
+	}
+	defer windows.CloseHandle(handle)
+	buf := make([]uint16, windows.MAX_LONG_PATH)
+	size := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(handle, 0, &buf[0], &size); err != nil {
+		return "", err
+	}
+	return windows.UTF16ToString(buf[:size]), nil
 }

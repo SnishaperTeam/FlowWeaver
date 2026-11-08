@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -425,10 +426,10 @@ func fetchReleasesFromURL(apiURL string) ([]githubRelease, error) {
 // officialAssetDigest scans the official GitHub releases for an asset
 // selected by match and returns its SHA-256. Mirror responses are never used
 // here.
-func (a *App) officialAssetDigest(match func(githubAsset) bool) (string, error) {
+func (a *App) officialAssetDigest(match func(githubAsset) bool) (string, string, error) {
 	releases, err := fetchReleasesFromURL(githubAPIBase + "/releases?per_page=100")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	for _, rel := range releases {
 		for _, asset := range rel.Assets {
@@ -437,24 +438,43 @@ func (a *App) officialAssetDigest(match func(githubAsset) bool) (string, error) 
 			}
 			digest := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(asset.Digest)), "sha256:")
 			if digest == "" {
-				return "", fmt.Errorf("official GitHub API did not provide a digest for %s", asset.Name)
+				return "", "", fmt.Errorf("official GitHub API did not provide a digest for %s", asset.Name)
 			}
-			return digest, nil
+			return digest, rel.TagName, nil
 		}
 	}
-	return "", fmt.Errorf("asset not found on official GitHub releases")
+	return "", "", fmt.Errorf("asset not found on official GitHub releases")
 }
 
-// fetchOfficialAssetDigest resolves the expected SHA-256 of a release asset
-// by its download URL.
-func (a *App) fetchOfficialAssetDigest(assetURL string) (string, error) {
+func (a *App) fetchOfficialAssetDigest(assetURL string) (string, string, error) {
 	return a.officialAssetDigest(func(asset githubAsset) bool { return asset.DownloadURL == assetURL })
 }
 
-// fetchOfficialAssetDigestByName resolves the expected SHA-256 of a release
-// asset by its file name, for callers that only have a local path.
-func (a *App) fetchOfficialAssetDigestByName(name string) (string, error) {
-	return a.officialAssetDigest(func(asset githubAsset) bool { return asset.Name == name })
+func (a *App) fetchOfficialAssetDigestByName(name string) (string, string, error) {
+	releases, err := fetchReleasesFromURL(githubAPIBase + "/releases?per_page=100")
+	if err != nil {
+		return "", "", err
+	}
+	var digest, tag string
+	for _, rel := range releases {
+		for _, asset := range rel.Assets {
+			if !strings.EqualFold(asset.Name, name) {
+				continue
+			}
+			value := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(asset.Digest)), "sha256:")
+			if value == "" {
+				continue
+			}
+			if digest != "" && !strings.EqualFold(digest, value) {
+				return "", "", fmt.Errorf("asset %s exists in several releases with different digests; re-download it from the update panel", name)
+			}
+			digest, tag = value, rel.TagName
+		}
+	}
+	if digest == "" {
+		return "", "", fmt.Errorf("asset %s not found on official GitHub releases", name)
+	}
+	return digest, tag, nil
 }
 
 func resolveChannelRelease(releases []githubRelease, channel string) *githubRelease {
@@ -733,9 +753,7 @@ func fileSHA256Hex(path string) (string, error) {
 }
 
 func (a *App) DownloadUpdateAsset(assetURL string) (DownloadResult, error) {
-	// Resolve the expected SHA-256 from the official GitHub API before
-	// downloading. Without a trusted digest the update is rejected outright.
-	expectedSHA, err := a.fetchOfficialAssetDigest(assetURL)
+	expectedSHA, expectedTag, err := a.fetchOfficialAssetDigest(assetURL)
 	if err != nil {
 		a.appendLog("[update] Integrity check unavailable (official GitHub API): " + err.Error())
 		return DownloadResult{}, fmt.Errorf("update integrity check unavailable: %v", err)
@@ -745,8 +763,8 @@ func (a *App) DownloadUpdateAsset(assetURL string) (DownloadResult, error) {
 	if fileName == "." || fileName == "/" || fileName == "" {
 		fileName = "flowweaver-update.bin"
 	}
-	dir := filepath.Join(os.TempDir(), "flowweaver-update")
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	dir, err := newStagingDir()
+	if err != nil {
 		return DownloadResult{}, err
 	}
 	dest := filepath.Join(dir, fileName)
@@ -773,7 +791,7 @@ func (a *App) DownloadUpdateAsset(assetURL string) (DownloadResult, error) {
 			a.appendLog("[update] " + lastErr.Error())
 			continue
 		}
-		a.setPendingUpdateVerified(dest, expectedSHA)
+		a.setPendingUpdateVerified(dest, expectedSHA, expectedTag)
 		return DownloadResult{LocalPath: dest, Size: fileSize(dest)}, nil
 	}
 	return DownloadResult{}, lastErr
@@ -963,7 +981,7 @@ func (a *App) emitDownloadProgress(name string, received, total int64, speed flo
 		percent = float64(received) / float64(total) * 100
 	}
 	a.invokeAsync(func() {
-		if !a.hasUI() || a.shouldQuit {
+		if !a.hasUI() || a.shouldQuit.Load() {
 			return
 		}
 		a.emitEvent("update:download_progress", map[string]interface{}{
@@ -994,34 +1012,28 @@ func (a *App) SetPendingUpdate(path string) {
 	defer a.pendingUpdateMu.Unlock()
 	a.pendingUpdatePath = path
 	a.pendingUpdateSHA = ""
+	a.pendingUpdateTag = ""
 }
 
-// setPendingUpdateVerified records the verified download together with the
-// SHA-256 it was validated against, so the installer can re-check the file
-// right before executing it.
-func (a *App) setPendingUpdateVerified(path, expectedSHA string) {
+func (a *App) setPendingUpdateVerified(path, expectedSHA, tag string) {
 	a.pendingUpdateMu.Lock()
 	defer a.pendingUpdateMu.Unlock()
 	a.pendingUpdatePath = path
 	a.pendingUpdateSHA = expectedSHA
+	a.pendingUpdateTag = tag
 }
 
-// verifyInstallAsset ensures the file about to be executed matches a SHA-256
-// from the official GitHub API: the in-memory pending digest when it applies,
-// otherwise one resolved by asset file name (fresh process, e.g. the CLI
-// `update install <path>` flow). This closes the gap of a file swapped or
-// modified on disk after the download.
 func (a *App) verifyInstallAsset(localPath string) error {
 	a.pendingUpdateMu.Lock()
-	pendingPath, expectedSHA := a.pendingUpdatePath, a.pendingUpdateSHA
+	pendingPath, expectedSHA, pendingTag := a.pendingUpdatePath, a.pendingUpdateSHA, a.pendingUpdateTag
 	a.pendingUpdateMu.Unlock()
-	if expectedSHA == "" || !strings.EqualFold(localPath, pendingPath) {
-		resolved, err := a.fetchOfficialAssetDigestByName(filepath.Base(localPath))
+	if expectedSHA == "" || pendingTag == "" || !strings.EqualFold(localPath, pendingPath) {
+		resolved, tag, err := a.fetchOfficialAssetDigestByName(filepath.Base(localPath))
 		if err != nil {
 			return fmt.Errorf("cannot verify update file against official GitHub releases: %v", err)
 		}
 		expectedSHA = resolved
-		a.setPendingUpdateVerified(localPath, expectedSHA)
+		a.setPendingUpdateVerified(localPath, expectedSHA, tag)
 	}
 	sum, err := fileSHA256Hex(localPath)
 	if err != nil {
@@ -1031,6 +1043,18 @@ func (a *App) verifyInstallAsset(localPath string) error {
 		return fmt.Errorf("update file changed after download (sha256 mismatch), refusing to install")
 	}
 	return nil
+}
+
+func newStagingDir() (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	dir := filepath.Join(os.TempDir(), "flowweaver-update", hex.EncodeToString(buf))
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return "", err
+	}
+	return dir, nil
 }
 
 func (a *App) InstallUpdateAsset(localPath string) error {

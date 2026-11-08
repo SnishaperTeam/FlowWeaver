@@ -6,7 +6,7 @@ func (a *App) startRulesWatcher() {
 	}
 
 	stop, err := a.ruleManager.WatchRulesFile(func() {
-		if a.shouldQuit {
+		if a.shouldQuit.Load() {
 			return
 		}
 		if err := a.ruleManager.LoadConfig(); err != nil {

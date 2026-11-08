@@ -2,8 +2,6 @@ package app
 
 import (
 	"log"
-	"os"
-	"path/filepath"
 
 	"flowweaver/common"
 )
@@ -17,19 +15,6 @@ func (a *App) StartupConfigOnly() error {
 		a.logBuffer = common.NewRingLogWriter(500)
 	}
 	log.SetOutput(&gatedLogWriter{app: a})
-	a.resolveLogDir()
+	a.resolveLogDirPath()
 	return a.ruleManager.LoadConfig()
-}
-
-// resolveLogDir points the app at <execDir>/log without creating a log file, so
-// commands that read or clean existing logs still find them.
-func (a *App) resolveLogDir() {
-	if a.logDir != "" {
-		return
-	}
-	ep, err := os.Executable()
-	if err != nil {
-		return
-	}
-	a.logDir = filepath.Join(filepath.Dir(ep), "log")
 }

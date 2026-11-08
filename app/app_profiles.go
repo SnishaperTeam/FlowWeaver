@@ -70,6 +70,57 @@ func profileDir(name string) string {
 	return filepath.Join(profilesDir(), name)
 }
 
+func configBackupDir() string {
+	return common.UserConfigPath("config-backups")
+}
+
+const configBackupKeep = 5
+
+func pruneConfigBackups(keep int) {
+	entries, err := os.ReadDir(configBackupDir())
+	if err != nil {
+		return
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	if len(names) <= keep {
+		return
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(names)))
+	for _, name := range names[keep:] {
+		_ = os.RemoveAll(filepath.Join(configBackupDir(), name))
+	}
+}
+
+func (a *App) backupLiveConfig() (string, error) {
+	dir := filepath.Join(configBackupDir(), time.Now().Format("20060102-150405.000"))
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", err
+	}
+	if err := copyFile(a.settingsPath, filepath.Join(dir, "settings.json")); err != nil {
+		return "", err
+	}
+	if err := copyFile(a.rulesPath, filepath.Join(dir, "rules.json")); err != nil {
+		return "", err
+	}
+	pruneConfigBackups(configBackupKeep)
+	return dir, nil
+}
+
+func (a *App) restoreLiveConfig(dir string) error {
+	if dir == "" {
+		return fmt.Errorf("no configuration backup available")
+	}
+	if err := copyFile(filepath.Join(dir, "settings.json"), a.settingsPath); err != nil {
+		return err
+	}
+	return copyFile(filepath.Join(dir, "rules.json"), a.rulesPath)
+}
+
 func activeProfileMarkerPath() string {
 	return filepath.Join(profilesDir(), "_active.json")
 }
@@ -186,6 +237,9 @@ func (a *App) CreateProfile(name string) (ProfileInfo, error) {
 
 // RenameProfile renames a stored profile, keeping the active marker in sync.
 func (a *App) RenameProfile(oldName, newName string) error {
+	if err := validateProfileName(oldName); err != nil {
+		return err
+	}
 	if err := validateProfileName(newName); err != nil {
 		return err
 	}
@@ -240,6 +294,9 @@ func snapshotDirInto(srcDir, dstDir string) error {
 // back so nothing is lost; the live files are replaced from the target
 // profile and both rule managers (app + core subprocess) reload.
 func (a *App) SwitchProfile(name string) error {
+	if err := validateProfileName(name); err != nil {
+		return err
+	}
 	dir := profileDir(name)
 	if _, err := os.Stat(dir); err != nil {
 		return fmt.Errorf("profile %q does not exist", name)
@@ -266,17 +323,56 @@ func (a *App) SwitchProfile(name string) error {
 		}
 	}
 
-	for _, f := range []struct{ src, dst string }{
-		{filepath.Join(dir, "settings.json"), a.settingsPath},
-		{filepath.Join(dir, "rules.json"), a.rulesPath},
-	} {
-		if err := copyFile(f.src, f.dst); err != nil {
-			return fmt.Errorf("apply profile file %s: %w", f.src, err)
+	backupDir, backupErr := a.backupLiveConfig()
+	if backupErr != nil {
+		a.appendLog("[profiles] warning: failed to back up the live configuration: " + backupErr.Error())
+	}
+
+	stage := func(src, dst string) (string, error) {
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return "", err
 		}
+		tmp := dst + ".switch.tmp"
+		if err := os.WriteFile(tmp, data, 0644); err != nil {
+			return "", err
+		}
+		return tmp, nil
+	}
+
+	settingsTmp, err := stage(filepath.Join(dir, "settings.json"), a.settingsPath)
+	if err != nil {
+		return fmt.Errorf("apply profile settings: %w", err)
+	}
+	rulesTmp, err := stage(filepath.Join(dir, "rules.json"), a.rulesPath)
+	if err != nil {
+		_ = os.Remove(settingsTmp)
+		return fmt.Errorf("apply profile rules: %w", err)
+	}
+
+	restore := func(cause error) error {
+		if restoreErr := a.restoreLiveConfig(backupDir); restoreErr != nil {
+			a.appendLog("[profiles] restore after failed switch also failed: " + restoreErr.Error())
+			return fmt.Errorf("%w (and the live configuration could not be restored: %v)", cause, restoreErr)
+		}
+		if reloadErr := a.ruleManager.LoadConfig(); reloadErr != nil {
+			a.appendLog("[profiles] reload after restore failed: " + reloadErr.Error())
+		}
+		return cause
+	}
+
+	if err := os.Rename(settingsTmp, a.settingsPath); err != nil {
+		_ = os.Remove(settingsTmp)
+		_ = os.Remove(rulesTmp)
+		return restore(fmt.Errorf("replace settings.json: %w", err))
+	}
+	if err := os.Rename(rulesTmp, a.rulesPath); err != nil {
+		_ = os.Remove(rulesTmp)
+		return restore(fmt.Errorf("replace rules.json: %w", err))
 	}
 
 	if err := a.ruleManager.LoadConfig(); err != nil {
-		return fmt.Errorf("reload configuration: %w", err)
+		return restore(fmt.Errorf("reload configuration: %w", err))
 	}
 	if port := a.ruleManager.GetListenPort(); port != "" {
 		_ = a.proxyServer.SetListenAddr("127.0.0.1:" + port)
@@ -296,6 +392,9 @@ func (a *App) SwitchProfile(name string) error {
 // its path. Bundles are placed under the log directory's profile-exports/
 // so the export never writes into arbitrary locations.
 func (a *App) ExportProfile(name string) (string, error) {
+	if err := validateProfileName(name); err != nil {
+		return "", err
+	}
 	dir := profileDir(name)
 	if _, err := os.Stat(dir); err != nil {
 		return "", fmt.Errorf("profile %q does not exist", name)
@@ -320,7 +419,11 @@ func (a *App) ExportProfile(name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	outDir := filepath.Join(a.logDir, "profile-exports")
+	exportDir, err := a.exportDir()
+	if err != nil {
+		return "", err
+	}
+	outDir := filepath.Join(exportDir, "profile-exports")
 	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return "", err
 	}
@@ -336,11 +439,18 @@ func (a *App) ExportProfile(name string) (string, error) {
 // selected. Only files this app wrote into its own profile-exports dir are
 // revealed; errors are logged, not returned.
 func (a *App) RevealProfileExport(path string) {
-	exportsDir := filepath.Join(a.logDir, "profile-exports")
-	if !strings.HasPrefix(filepath.Clean(path), exportsDir+string(filepath.Separator)) {
+	if a.logDir == "" {
 		return
 	}
-	if err := common.RevealPath(path); err != nil {
+	exportsDir, err := filepath.Abs(filepath.Join(a.logDir, "profile-exports"))
+	if err != nil {
+		return
+	}
+	absPath, err := filepath.Abs(path)
+	if err != nil || !strings.HasPrefix(absPath, exportsDir+string(filepath.Separator)) {
+		return
+	}
+	if err := common.RevealPath(absPath); err != nil {
 		a.appendLog("[profiles] failed to reveal export: " + err.Error())
 	}
 }

@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"unicode/utf16"
 
+	"flowweaver/common"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -22,7 +24,7 @@ const (
 	// can remove it: leaving it in place would start a second instance at
 	// logon alongside the task.
 	autoStartRegistryPath = `Software\Microsoft\Windows\CurrentVersion\Run`
-	autoStartValueName = "FlowWeaver"
+	autoStartValueName    = "FlowWeaver"
 
 	// Task name in the Task Scheduler library.
 	autoStartTaskName = "FlowWeaver"
@@ -154,13 +156,13 @@ func deleteTask(taskName string) error {
 
 // taskExists reports whether a task with the given name is registered.
 func taskExists(taskName string) bool {
-	cmd := exec.Command("schtasks", "/query", "/tn", taskName)
+	cmd := exec.Command(common.SchtasksPath(), "/query", "/tn", taskName)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd.Run() == nil
 }
 
 func runSchtasks(args ...string) (string, error) {
-	cmd := exec.Command("schtasks", args...)
+	cmd := exec.Command(common.SchtasksPath(), args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err

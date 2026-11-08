@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -11,15 +12,16 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"flowweaver/common"
+	"flowweaver/core"
 	"github.com/SnishaperTeam/snishaper-core/certmanager"
 	coreconfig "github.com/SnishaperTeam/snishaper-core/config"
 	"github.com/SnishaperTeam/snishaper-core/evolution"
 	"github.com/SnishaperTeam/snishaper-core/netiface"
 	"github.com/SnishaperTeam/snishaper-core/proxy"
-	"flowweaver/common"
-	"flowweaver/core"
 )
 
 // UIAdapter is an optional event sink used by headless builds (the CLI /
@@ -33,60 +35,66 @@ type App struct {
 	// GUI-only UI references. Kept as `any` so the headless build (with the
 	// `headless` build tag) never links the wails runtime; the GUI build
 	// accesses them through the typed helpers in app_ui_wails.go.
-	wailsApp     any // *application.App
-	mainWindow   any // *application.WebviewWindow
-	systemTray   any // *application.SystemTray
-	trayMenuV3   any // *application.Menu
-	proxyItemV3  any // *application.MenuItem
+	uiMu              sync.RWMutex
+	wailsApp          any // *application.App
+	mainWindow        any // *application.WebviewWindow
+	systemTray        any // *application.SystemTray
+	trayMenuV3        any // *application.Menu
+	proxyItemV3       any // *application.MenuItem
 	systemProxyItemV3 any // *application.MenuItem
 
 	// Headless-only event sink (set via SetUIAdapter in the CLI build).
-	ui          UIAdapter
-	cliMode     bool
+	ui           UIAdapter
+	cliMode      bool
 	silentStdout bool
 
-	proxyServer         *proxy.ProxyServer
-	certManager         *certmanager.CertManager
-	ruleManager         *proxy.RuleManager
-	settingsPath        string
-	rulesPath           string
-	evolutionTester     *evolution.Tester
-	evolutionTesterMu   sync.Mutex
-	certPath            string
-	proxyMarkerPath     string
-	logBuffer           *common.RingLogWriter
-	logDir              string
-	logFilePath         string
-	logFile             *os.File
-	logFileMu           sync.Mutex
-	logCaptureMu        sync.RWMutex
-	logCaptureEnabled   bool
-	shouldQuit          bool
-	proxyOpMu           sync.Mutex // lock order: proxyOpMu → systemProxyOpMu (never reverse)
-	systemProxyOpMu     sync.Mutex
-	wg                  sync.WaitGroup
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	launchedAtStartup   bool
-	autoProxyAtStartup  bool
-	recoveryReport      LeftoverSystemProxyReport
+	proxyServer        *proxy.ProxyServer
+	certManager        *certmanager.CertManager
+	ruleManager        *proxy.RuleManager
+	settingsPath       string
+	rulesPath          string
+	evolutionTester    *evolution.Tester
+	evolutionTesterMu  sync.Mutex
+	certPath           string
+	proxyMarkerPath    string
+	logBuffer          *common.RingLogWriter
+	logDir             string
+	logFilePath        string
+	logFile            *os.File
+	logWriter          *bufio.Writer
+	logFileMu          sync.Mutex
+	logCaptureMu       sync.RWMutex
+	logCaptureEnabled  bool
+	shouldQuit         atomic.Bool
+	proxyOpMu          sync.Mutex // lock order: proxyOpMu → systemProxyOpMu (never reverse)
+	systemProxyOpMu    sync.Mutex
+	wg                 sync.WaitGroup
+	ctx                context.Context
+	cancel             context.CancelFunc
+	launchedAtStartup  bool
+	autoProxyAtStartup bool
+	recoveryReport     LeftoverSystemProxyReport
 	// startupMigrationReport 是启动加载配置时产生的迁移/校验报告，
 	// 由 GetLastMigrationReport 暴露给前端展示（无内容时各列表为空）。
 	startupMigrationReport proxy.MigrationReport
-	core                *core.CoreClient
-	tunSysProxyMu       sync.Mutex // 保护 tunRestoreSysProxy：调用方与 StartTUN 异步 goroutine 并发访问
-	tunRestoreSysProxy  bool
-	pendingShow         bool
-	pendingUpdateMu     sync.Mutex
-	pendingUpdatePath   string
-	pendingUpdateSHA    string // 待安装更新包校验通过的 SHA-256
-	downloadConcurrency int
-	downloadChunkSize   int64
-	sourceRankMu        sync.Mutex
-	sourceRankCache     map[string][]string
-	sourceRankAt        map[string]time.Time
-	rulesWatchMu        sync.Mutex
-	rulesWatchStop      func()
+	core                   *core.CoreClient
+	tunSysProxyMu          sync.Mutex // 保护 tunRestoreSysProxy：调用方与 StartTUN 异步 goroutine 并发访问
+	tunRestoreSysProxy     bool
+	pendingShow            atomic.Bool
+	pendingUpdateMu        sync.Mutex
+	pendingUpdatePath      string
+	pendingUpdateSHA       string // 待安装更新包校验通过的 SHA-256
+	pendingUpdateTag       string // 该 SHA-256 所属的 release tag
+	downloadConcurrency    int
+	downloadChunkSize      int64
+	sourceRankMu           sync.Mutex
+	sourceRankCache        map[string][]string
+	sourceRankAt           map[string]time.Time
+	rulesWatchMu           sync.Mutex
+	rulesWatchStop         func()
+	ipv6Mu                 sync.Mutex
+	ipv6Value              bool
+	ipv6At                 time.Time
 	// ifaces is this App's outbound interface cache. TUN start/stop and any
 	// exclusion change invalidate it, because the list is only correct once our
 	// own adapter exists (or is gone).
@@ -94,7 +102,79 @@ type App struct {
 }
 
 // ShouldQuit returns whether the app should quit.
-func (a *App) ShouldQuit() bool { return a.shouldQuit }
+func (a *App) ShouldQuit() bool { return a.shouldQuit.Load() }
+
+func (a *App) wailsAppRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.wailsApp
+}
+
+func (a *App) setWailsAppRef(app any) {
+	a.uiMu.Lock()
+	a.wailsApp = app
+	a.uiMu.Unlock()
+}
+
+func (a *App) mainWindowRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.mainWindow
+}
+
+func (a *App) setMainWindowRef(window any) {
+	a.uiMu.Lock()
+	a.mainWindow = window
+	a.uiMu.Unlock()
+}
+
+func (a *App) systemTrayRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.systemTray
+}
+
+func (a *App) setSystemTrayRef(tray any) {
+	a.uiMu.Lock()
+	a.systemTray = tray
+	a.uiMu.Unlock()
+}
+
+func (a *App) trayMenuRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.trayMenuV3
+}
+
+func (a *App) setTrayMenuRef(menu any) {
+	a.uiMu.Lock()
+	a.trayMenuV3 = menu
+	a.uiMu.Unlock()
+}
+
+func (a *App) proxyItemRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.proxyItemV3
+}
+
+func (a *App) setProxyItemRef(item any) {
+	a.uiMu.Lock()
+	a.proxyItemV3 = item
+	a.uiMu.Unlock()
+}
+
+func (a *App) systemProxyItemRef() any {
+	a.uiMu.RLock()
+	defer a.uiMu.RUnlock()
+	return a.systemProxyItemV3
+}
+
+func (a *App) setSystemProxyItemRef(item any) {
+	a.uiMu.Lock()
+	a.systemProxyItemV3 = item
+	a.uiMu.Unlock()
+}
 
 // RunSafeAsync runs a function safely in a goroutine.
 func (a *App) RunSafeAsync(taskName string, fn func()) { a.runSafeAsync(taskName, fn) }
@@ -125,36 +205,65 @@ func (a *App) setupFileLogger() {
 	a.reportPreviousRun()
 }
 
+func (a *App) resolveLogDirPath() string {
+	if a.logDir != "" {
+		return a.logDir
+	}
+	if ep, err := os.Executable(); err == nil {
+		dir := filepath.Join(filepath.Dir(ep), "log")
+		if err := os.MkdirAll(dir, 0755); err == nil {
+			a.logDir = dir
+			return dir
+		}
+	}
+	if cache, err := os.UserCacheDir(); err == nil {
+		dir := filepath.Join(cache, "flowweaver", "log")
+		if err := os.MkdirAll(dir, 0755); err == nil {
+			a.logDir = dir
+			return dir
+		}
+	}
+	return ""
+}
+
 // openLogFile creates a new timestamped log file for this run in
 // <execDir>/log/. One file per run: opened at startup, closed at shutdown.
 func (a *App) openLogFile() {
-	if a.logDir == "" {
-		if ep, err := os.Executable(); err == nil {
-			a.logDir = filepath.Join(filepath.Dir(ep), "log")
-		} else {
-			return
-		}
-	}
-	if err := os.MkdirAll(a.logDir, 0755); err != nil {
-		a.appendLog("[warn] Failed to create log dir: " + err.Error())
+	dir := a.resolveLogDirPath()
+	if dir == "" {
+		a.appendLog("[warn] No writable log directory available")
 		return
 	}
 	name := time.Now().Format("2006-01-02_15-04-05") + ".log"
-	f, err := os.OpenFile(filepath.Join(a.logDir, name), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	path := filepath.Join(dir, name)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		a.appendLog("[warn] Failed to open log file: " + err.Error())
 		return
 	}
 	a.logFileMu.Lock()
 	a.logFile = f
-	a.logFilePath = filepath.Join(a.logDir, name)
+	a.logWriter = bufio.NewWriterSize(f, 32*1024)
+	a.logFilePath = path
 	a.logFileMu.Unlock()
 	a.appendLog("[startup] Log file: " + a.logFilePath)
+}
+
+func (a *App) flushLogFile() {
+	a.logFileMu.Lock()
+	defer a.logFileMu.Unlock()
+	if a.logWriter != nil {
+		_ = a.logWriter.Flush()
+	}
 }
 
 func (a *App) closeLogFile() {
 	a.logFileMu.Lock()
 	defer a.logFileMu.Unlock()
+	if a.logWriter != nil {
+		_ = a.logWriter.Flush()
+		a.logWriter = nil
+	}
 	if a.logFile != nil {
 		_ = a.logFile.Close()
 		a.logFile = nil
@@ -164,8 +273,12 @@ func (a *App) closeLogFile() {
 func (a *App) writeLogFile(s string) {
 	a.logFileMu.Lock()
 	defer a.logFileMu.Unlock()
-	if a.logFile != nil {
-		_, _ = a.logFile.WriteString(s)
+	if a.logWriter == nil {
+		return
+	}
+	_, _ = a.logWriter.WriteString(s)
+	if a.logWriter.Buffered() >= 32*1024 {
+		_ = a.logWriter.Flush()
 	}
 }
 
@@ -193,6 +306,12 @@ func (a *App) appendLog(message string) {
 	a.writeLogFile(formatted + "\n")
 }
 
+func (a *App) logFileReady() bool {
+	a.logFileMu.Lock()
+	defer a.logFileMu.Unlock()
+	return a.logWriter != nil
+}
+
 // startLogFileMirror continuously appends the core process's logs into the
 // current log file, so the persisted log captures both app and core activity.
 // ponytail: anchor-line dedup; safe while the core ring (5000 lines) still
@@ -205,10 +324,11 @@ func (a *App) startLogFileMirror() {
 		for {
 			select {
 			case <-a.ctx.Done():
+				a.flushLogFile()
 				return
 			case <-ticker.C:
 			}
-			if a.core == nil || a.logFile == nil {
+			if a.core == nil || !a.logFileReady() {
 				continue
 			}
 			logs := strings.TrimSpace(a.core.GetRecentLogs(200))
@@ -232,6 +352,7 @@ func (a *App) startLogFileMirror() {
 			}
 			anchor = strings.TrimSpace(lines[len(lines)-1])
 			a.writeLogFile(strings.Join(lines, "\n") + "\n")
+			a.flushLogFile()
 		}
 	})
 }
@@ -360,7 +481,7 @@ func (a *App) autoEnableProxyAtStartup() {
 		a.appendLog(fmt.Sprintf("[startup] AutoStart StartProxy attempt %d failed: %v", attempt+1, err))
 		if attempt >= len(delays) {
 			a.appendLog("[startup] AutoStart proxy enable failed after all retries; proxy left off")
-			if a.systemTray != nil {
+			if a.systemTrayRef() != nil {
 				a.setTrayTooltip("FlowWeaver: 开机自启代理启动失败，请手动开启代理")
 			}
 			return
@@ -394,7 +515,7 @@ func (a *App) startRouteEventsPoller() {
 			}
 			for _, e := range events {
 				a.invokeAsync(func() {
-					if !a.hasUI() || a.shouldQuit {
+					if !a.hasUI() || a.shouldQuit.Load() {
 						return
 					}
 					a.emitEvent("app:route", map[string]interface{}{
@@ -483,7 +604,7 @@ func (a *App) refreshTrayMenuLater(delays ...time.Duration) {
 }
 
 func (a *App) UpdateTrayMenu() {
-	if a.systemTray == nil || a.trayMenuV3 == nil {
+	if a.systemTrayRef() == nil || a.trayMenuRef() == nil {
 		return
 	}
 
@@ -492,7 +613,7 @@ func (a *App) UpdateTrayMenu() {
 	if running {
 		proxyLabel = "代理: 开"
 	}
-	if a.proxyItemV3 != nil {
+	if a.proxyItemRef() != nil {
 		a.updateTrayProxyItem(proxyLabel, running)
 	}
 
@@ -501,13 +622,13 @@ func (a *App) UpdateTrayMenu() {
 	if status.Enabled {
 		sysProxyLabel = "系统代理: 开"
 	}
-	if a.systemProxyItemV3 != nil {
+	if a.systemProxyItemRef() != nil {
 		a.updateTraySysProxyItem(sysProxyLabel)
 	}
 }
 
 func (a *App) emitFrontendState() {
-	if a.shouldQuit {
+	if a.shouldQuit.Load() {
 		return
 	}
 	a.UpdateTrayMenu()
@@ -515,7 +636,7 @@ func (a *App) emitFrontendState() {
 		return
 	}
 	a.invokeAsync(func() {
-		if !a.hasUI() || a.shouldQuit {
+		if !a.hasUI() || a.shouldQuit.Load() {
 			return
 		}
 		tunStatus := a.GetTUNStatus()
@@ -525,7 +646,7 @@ func (a *App) emitFrontendState() {
 			"proxyMode":         a.GetProxyMode(),
 			"tunRunning":        tunStatus.Running,
 			"tunMessage":        tunStatus.Message,
-			"ipv6Available":     a.checkIPv6Available(),
+			"ipv6Available":     a.cachedIPv6Available(30 * time.Second),
 		})
 	})
 }

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	"flowweaver/common"
+
 	"golang.org/x/sys/windows"
 )
 
@@ -53,7 +55,7 @@ func ElevateSelf() error {
 		argList,
 	)
 
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", psScript)
+	cmd := exec.Command(common.PowerShellPath(), "-NoProfile", "-Command", psScript)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	return cmd.Run()
 }

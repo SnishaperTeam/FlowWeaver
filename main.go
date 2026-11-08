@@ -44,7 +44,7 @@ func main() {
 		}
 	}
 
-	app.RecoverBrokenSingleInstance("com.flowweaver.desktop")
+	staleOwner := app.RecoverBrokenSingleInstance("com.flowweaver.desktop")
 
 	if devSession {
 		if app.IsSingleInstanceRunning("com.flowweaver.desktop") {
@@ -64,8 +64,13 @@ func main() {
 		if woke {
 			return
 		}
-		log.Printf("[main] Failed to wake running instance, killing stale instance and taking over")
+		log.Printf("[main] Failed to wake running instance, cleaning up its network state and taking over")
+		app.CleanupOrphanedNetworkState()
 		app.KillSingleInstance("com.flowweaver.desktop")
+	} else if staleOwner {
+		log.Printf("[main] Found a stale single-instance owner without a window; cleaning up and taking over")
+		app.CleanupOrphanedNetworkState()
+		app.KillStaleOwner("com.flowweaver.desktop")
 	}
 
 	a := app.NewApp()

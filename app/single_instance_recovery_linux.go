@@ -30,17 +30,18 @@ func IsSingleInstanceRunning(uniqueID string) bool {
 
 // RecoverBrokenSingleInstance removes a socket left behind by a crashed run, so
 // the next launch is not blocked by an unreachable endpoint.
-func RecoverBrokenSingleInstance(uniqueID string) {
+func RecoverBrokenSingleInstance(uniqueID string) bool {
 	path := instanceSocketPath(uniqueID)
 	if _, err := os.Stat(path); err != nil {
-		return
+		return false
 	}
 	if IsSingleInstanceRunning(uniqueID) {
-		return
+		return false
 	}
 	if err := os.Remove(path); err == nil {
 		log.Printf("[single-instance] removed stale socket %s", path)
 	}
+	return false
 }
 
 func WakeSingleInstance(uniqueID string) error {
@@ -61,6 +62,8 @@ func WakeSingleInstance(uniqueID string) error {
 // instance, so there is nothing stale to force-terminate. A second launch that
 // cannot wake the first one still falls back to the runtime's session bus path.
 func KillSingleInstance(string) {}
+
+func KillStaleOwner(string) {}
 
 // AllowSingleInstanceCrossIntegrity exists for the Windows integrity levels.
 func AllowSingleInstanceCrossIntegrity(string) {}

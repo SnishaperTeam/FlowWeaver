@@ -19,8 +19,7 @@ func (a *App) enableCrashLog() string {
 	}
 	dir := a.logDir
 	if dir == "" {
-		a.resolveLogDir()
-		dir = a.logDir
+		dir = a.resolveLogDirPath()
 	}
 	return common.EnableCrashLog(dir)
 }
