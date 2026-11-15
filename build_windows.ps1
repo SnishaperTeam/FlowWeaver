@@ -1042,6 +1042,15 @@ function Invoke-BuildTarget {
         }
     }
 
+    # The portable updater always ships next to the application: the
+    # installer, the portable archive and the MSIX package are all built
+    # from this folder, so the updater and its config must live in it too.
+    if ($Target.Type -eq "gui" -and $Target.GoOs -eq "windows") {
+        if (-not (Build-UpdaterPayload -Arch $Target.Arch -GoArch $Target.GoArch -DestDir $outDir)) {
+            return $false
+        }
+    }
+
     # Seed folders:
     # - rules: force-overwrite CONTENTS on every build so rule updates land.
     #   Copy-Item -Recurse against an existing destination would nest the
@@ -1063,6 +1072,66 @@ function Invoke-BuildTarget {
     }
 
     Write-Host "[BUILD] OK: $($Target.OutDir)\$($Target.OutFile)" -ForegroundColor Green
+    return $true
+}
+
+# AppIds must match .github/scripts/create-inno-installer.ps1 exactly: the
+# updater reads the Inno uninstall entry keyed by this GUID to find the
+# installed version and directory.
+$updaterAppIds = @{
+    'x64'   = '{2D0B5C1D-7F2F-4628-920B-33D33F53F173}'
+    'x86'   = '{EB323524-40F5-4876-83F8-321B9051512E}'
+    'arm64' = '{AAC273E2-545B-4459-82BE-601367147E93}'
+}
+
+function Build-UpdaterPayload {
+    param([string]$Arch, [string]$GoArch, [string]$DestDir)
+
+    if (-not $updaterAppIds.ContainsKey($Arch)) {
+        Write-Host "[UPDATER] unsupported architecture: $Arch" -ForegroundColor Red
+        return $false
+    }
+
+    $updaterRoot = Join-Path $ProjectRoot "build\bin\updater\Windows\$Arch"
+    $updaterExe = Join-Path $updaterRoot "FlowWeaverUpdater.exe"
+    $updaterConfig = Join-Path $updaterRoot "updater.json"
+
+    # 每次构建都重建更新器：陈旧更新器配新主程序会产生参数不兼容
+    # （旧更新器不认识新 -package/-sha256 参数，启动即退出）。
+    New-Item -ItemType Directory -Force -Path $updaterRoot | Out-Null
+    Write-Host "[BUILD] UPDATER Windows/$Arch ($GoArch) -> build\bin\updater\Windows\$Arch\FlowWeaverUpdater.exe" -ForegroundColor Green
+    try {
+        $env:GOOS = "windows"
+        $env:GOARCH = $GoArch
+        $env:CGO_ENABLED = "0"
+        go build -trimpath -ldflags="-s -w" -o $updaterExe ./updater
+        $rc = $LASTEXITCODE
+    } finally {
+        Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED -ErrorAction SilentlyContinue
+    }
+    if ($rc -ne 0 -or -not (Test-Path $updaterExe)) {
+        Write-Host "[BUILD] UPDATER FAILED for $Arch" -ForegroundColor Red
+        return $false
+    }
+
+    $config = [ordered]@{
+        arch = $Arch
+        installer_pattern = '*Setup.exe'
+        installer_name = ''
+        process_names = @('flowweaver.exe')
+        app_id = $updaterAppIds[$Arch]
+        install_dir = ''
+        verify_authenticode = $false
+        restart_after_install = $true
+        max_extract_bytes = 1073741824
+    }
+    [System.IO.File]::WriteAllText($updaterConfig, ($config | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
+
+    Copy-Item -LiteralPath $updaterExe -Destination (Join-Path $DestDir 'FlowWeaverUpdater.exe') -Force
+    if (Test-Path $updaterConfig) {
+        Copy-Item -LiteralPath $updaterConfig -Destination (Join-Path $DestDir 'updater.json') -Force
+    }
+    Write-Host "[BUILD] UPDATER bundled into $DestDir" -ForegroundColor Green
     return $true
 }
 

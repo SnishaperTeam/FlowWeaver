@@ -8,7 +8,7 @@ import (
 )
 
 func TestShQuote(t *testing.T) {
-	if got := shQuote(`/opt/FlowWeaver's dir`); got != `'/opt/FlowWeaver'\''s dir'` {
+	if got := shQuote(`/opt/SniShaper's dir`); got != `'/opt/SniShaper'\''s dir'` {
 		t.Fatalf("unexpected escaping: %s", got)
 	}
 	if got := shQuote("/opt/plain"); got != "'/opt/plain'" {
@@ -17,7 +17,7 @@ func TestShQuote(t *testing.T) {
 }
 
 func TestBuildUpdateApplyScriptQuotesPaths(t *testing.T) {
-	script := buildUpdateApplyScript(4242, "/tmp/s'stage", "/opt/a'pp", "/opt/a'pp/flowweaver", "/tmp/s'base")
+	script := buildUpdateApplyScript(4242, "/tmp/s'stage", "/opt/a'pp", "/opt/a'pp/snishaper", "/tmp/s'base")
 	// 未转义的单引号会截断 sh 字符串，必须转义
 	if strings.Contains(script, "s'stage") || strings.Contains(script, "a'pp") || strings.Contains(script, "s'base") {
 		t.Fatal("unescaped single quote in apply script")

@@ -198,3 +198,5 @@ export const TestSubscriptionNodeByID = (subscriptionID: string, nodeName: strin
 export const TestServiceLatency = (serviceURL: string) =>
   appCall('TestServiceLatency', serviceURL) as Promise<number>;
 
+export const GetNotices = (force: boolean) => appCall('GetNotices', force);
+

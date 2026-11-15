@@ -434,12 +434,11 @@
     {
       "id": "sg-1771319670672-27",
       "name": "community.github.com",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "domains": [
         "community.github.com",
         "copilot.github.com",
         "redirect.github.com",
-        "services.github.com",
         "collector.github.com"
       ],
       "ech_enabled": false,
@@ -453,16 +452,8 @@
       },
       "website": "github",
       "enabled": true,
-      "upstream": "106.55.101.131",
-      "nat64_enabled": false,
-      "frag": {
-        "num_records": 1,
-        "num_segments": 4,
-        "interval_ms": 50,
-        "mod_minor_ver": false,
-        "oob": false,
-        "oob_ex": false
-      }
+      "upstream": "140.82.114.17",
+      "nat64_enabled": false
     },
     {
       "id": "sg-1771319670672-30",
@@ -521,7 +512,7 @@
     {
       "id": "sg-1771319670672-32",
       "name": "docs",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "sni_fake": "docs-github-com.mapped",
       "domains": [
         "docs.github.com",
@@ -540,16 +531,8 @@
       },
       "website": "github",
       "enabled": true,
-      "upstream": "106.55.101.131",
-      "nat64_enabled": false,
-      "frag": {
-        "num_records": 1,
-        "num_segments": 4,
-        "interval_ms": 50,
-        "mod_minor_ver": false,
-        "oob": false,
-        "oob_ex": false
-      }
+      "upstream": "185.199.110.154",
+      "nat64_enabled": false
     },
     {
       "id": "sg-1771319670672-33",
@@ -618,6 +601,7 @@
       "name": "et.nytimes.com",
       "mode": "mitm",
       "sni_policy": "fake",
+      "sni_fake": "www-nytimes-com",
       "domains": [
         "et.nytimes.com",
         "nyt.com",
@@ -806,7 +790,7 @@
     {
       "id": "sg-1771319670672-52",
       "name": "github.com",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "sni_fake": "gist-github-com.mapped",
       "domains": [
         "gist.github.com",
@@ -824,15 +808,7 @@
       "website": "github",
       "enabled": true,
       "upstream": "20.27.177.113",
-      "nat64_enabled": false,
-      "frag": {
-        "num_records": 1,
-        "num_segments": 2,
-        "interval_ms": 50,
-        "mod_minor_ver": false,
-        "oob": false,
-        "oob_ex": false
-      }
+      "nat64_enabled": false
     },
     {
       "id": "sg-1771319670672-53",
@@ -1883,7 +1859,7 @@
     {
       "id": "sg-manual-uploads-github",
       "name": "uploads.github.com",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "sni_fake": "uploads-github-com.mapped",
       "domains": [
         "uploads.github.com"
@@ -1899,16 +1875,8 @@
       },
       "website": "github",
       "enabled": true,
-      "upstream": "20.207.73.81:443",
-      "nat64_enabled": false,
-      "frag": {
-        "num_records": 1,
-        "num_segments": 2,
-        "interval_ms": 50,
-        "mod_minor_ver": false,
-        "oob": false,
-        "oob_ex": false
-      }
+      "upstream": "20.27.177.113",
+      "nat64_enabled": false
     },
     {
       "id": "sg-manual-alive-github",
@@ -1929,7 +1897,7 @@
       },
       "website": "github",
       "enabled": true,
-      "upstream": "140.82.112.26:443",
+      "upstream": "20.27.177.113",
       "nat64_enabled": false
     },
     {
@@ -3083,7 +3051,7 @@
     {
       "id": "1778683233214430600",
       "name": "avatars",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "domains": [
         "avatars.githubusercontent.com",
         "camo.githubusercontent.com",
@@ -3093,7 +3061,6 @@
         "pkg-containers.githubusercontent.com",
         "marketplace-screenshots.githubusercontent.com",
         "raw.githubusercontent.com",
-        "codeload.github.com",
         "media.githubusercontent.com",
         "gist.githubusercontent.com",
         "cloud.githubusercontent.com",
@@ -3104,16 +3071,8 @@
       "cert_verify": {},
       "website": "github",
       "enabled": true,
-      "upstream": "106.55.101.131",
-      "nat64_enabled": false,
-      "frag": {
-        "num_records": 1,
-        "num_segments": 4,
-        "interval_ms": 50,
-        "mod_minor_ver": false,
-        "oob": false,
-        "oob_ex": false
-      }
+      "upstream": "185.199.108.133",
+      "nat64_enabled": false
     },
     {
       "id": "1792243200000000000",
@@ -3156,7 +3115,7 @@
     {
       "id": "1778742699505842800",
       "name": "private",
-      "mode": "tls-rf",
+      "mode": "mitm",
       "domains": [
         "private-user-images.githubusercontent.com"
       ],
@@ -4290,6 +4249,67 @@
       "cert_verify": {},
       "website": "torproject",
       "enabled": true,
+      "nat64_enabled": false
+    },
+    {
+      "id": "sg-github-services",
+      "name": "services.github.com",
+      "mode": "mitm",
+      "domains": [
+        "services.github.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "github",
+      "enabled": true,
+      "upstream": "140.82.113.18",
+      "nat64_enabled": false
+    },
+    {
+      "id": "sg-github-codeload",
+      "name": "codeload.github.com",
+      "mode": "mitm",
+      "domains": [
+        "codeload.github.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "github",
+      "enabled": true,
+      "upstream": "20.205.243.165",
+      "nat64_enabled": false
+    },
+    {
+      "id": "sg-github-support",
+      "name": "support.github.com",
+      "mode": "mitm",
+      "domains": [
+        "support.github.com",
+        "resources.github.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "github",
+      "enabled": true,
+      "upstream": "185.199.108.133",
+      "nat64_enabled": false
+    },
+    {
+      "id": "sg-github-objects-origin",
+      "name": "objects-origin.githubusercontent.com",
+      "mode": "mitm",
+      "domains": [
+        "objects-origin.githubusercontent.com"
+      ],
+      "ech_enabled": false,
+      "use_cf_pool": false,
+      "cert_verify": {},
+      "website": "github",
+      "enabled": true,
+      "upstream": "140.82.113.22",
       "nat64_enabled": false
     }
   ],

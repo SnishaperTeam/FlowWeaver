@@ -1,0 +1,18 @@
+{
+  "manifest_url": "https://releases.example.com/flowweaver/stable/manifest.json",
+  "mirror_urls": [],
+  "public_key": "BASE64_ED25519_PUBLIC_KEY_32_BYTES",
+  "channel": "stable",
+  "arch": "auto",
+  "installer_pattern": "*Setup.exe",
+  "installer_name": "",
+  "process_names": ["flowweaver.exe"],
+  "app_id": "{2D0B5C1D-7F2F-4628-920B-33D33F53F173}",
+  "install_dir": "",
+  "local_version": "auto",
+  "verify_authenticode": false,
+  "restart_after_install": false,
+  "http_timeout_minutes": 30,
+  "max_retries": 3,
+  "max_extract_bytes": 1073741824
+}

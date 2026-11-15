@@ -100,6 +100,10 @@ type App struct {
 	// exclusion change invalidate it, because the list is only correct once our
 	// own adapter exists (or is gone).
 	ifaces *netiface.Selector
+
+	noticesMu      sync.Mutex
+	noticesPayload *NoticesPayload
+	noticesFetched time.Time
 }
 
 // ShouldQuit returns whether the app should quit.

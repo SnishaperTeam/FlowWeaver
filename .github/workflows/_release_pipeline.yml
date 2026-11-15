@@ -139,10 +139,17 @@ jobs:
             $parts = $pkgVersion.Split('.')
             if ($parts.Count -eq 4 -and $parts[3] -eq '0') {
               $version = ($parts[0..2] -join '.')
+              $identityVersion = "$version.0"
+            } elseif ($parts.Count -eq 4) {
+              # Four part hotfix version (e.g. 1.30.3.1): the build part is
+              # significant, so it is both the release version and the
+              # MSIX identity version as-is.
+              $version = $pkgVersion
+              $identityVersion = $pkgVersion
             } else {
               $version = $pkgVersion
+              $identityVersion = "$version.0"
             }
-            $identityVersion = "$version.0"
           }
 
           $channel = "${{ inputs.channel }}"
@@ -280,6 +287,8 @@ jobs:
     env:
       MSIX_PFX_PASSWORD: ${{ secrets.MSIX_PFX_PASSWORD }}
       MSIX_PFX_BASE64: ${{ secrets.MSIX_PFX_BASE64 }}
+      UPDATER_SIGNING_READY: ${{ secrets.UPDATER_ED25519_SEED != '' }}
+      UPDATER_ED25519_SEED: ${{ secrets.UPDATER_ED25519_SEED }}
     steps:
       - name: Checkout full history
         uses: actions/checkout@v7
@@ -292,6 +301,65 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Build portable updater
+        shell: pwsh
+        env:
+          UPDATER_PUBLIC_KEY_READY: ${{ secrets.UPDATER_ED25519_SEED != '' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = $env:GITHUB_WORKSPACE
+          $repo = "${{ github.repository }}"
+          $appIds = @{
+            'x64' = '{2D0B5C1D-7F2F-4628-920B-33D33F53F173}'
+            'x86' = '{EB323524-40F5-4876-83F8-321B9051512E}'
+            'arm64' = '{AAC273E2-545B-4459-82BE-601367147E93}'
+          }
+          $pubKey = ''
+          if ($env:UPDATER_PUBLIC_KEY_READY -eq 'true') {
+            $pubOut = Join-Path $env:TEMP 'flowweaver-updater-public-key.txt'
+            & go run ./updater/signmanifest -pub-out $pubOut
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::cannot derive updater public key"
+              exit 1
+            }
+            $pubKey = (Get-Content -LiteralPath $pubOut -Raw).Trim()
+          }
+          $archMap = @{ 'x64' = 'amd64'; 'x86' = '386'; 'arm64' = 'arm64' }
+          foreach ($a in $archMap.Keys) {
+            $dir = Join-Path $root "build/bin/updater/Windows/$a"
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            $out = Join-Path $dir 'FlowWeaverUpdater.exe'
+            $env:GOOS = 'windows'
+            $env:CGO_ENABLED = '0'
+            $env:GOARCH = $archMap[$a]
+            & go build -trimpath -ldflags '-s -w' -o $out ./updater
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::updater build failed for $a"
+              exit 1
+            }
+            $config = [ordered]@{
+              manifest_url = "https://github.com/$repo/releases/latest/download/updater-manifest-$a.json"
+              mirror_urls = @()
+              public_key = $pubKey
+              channel = 'stable'
+              arch = $a
+              installer_pattern = '*Setup.exe'
+              installer_name = ''
+              process_names = @('flowweaver.exe')
+              app_id = $appIds[$a]
+              install_dir = ''
+              local_version = 'auto'
+              verify_authenticode = $false
+              restart_after_install = $false
+              http_timeout_minutes = 30
+              max_retries = 3
+              max_extract_bytes = 1073741824
+            }
+            [System.IO.File]::WriteAllText((Join-Path $dir 'updater.json'), ($config | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
+            Write-Host "::notice::portable updater built for $a"
+          }
+          Remove-Item Env:GOOS, Env:GOARCH, Env:CGO_ENABLED -ErrorAction SilentlyContinue
 
       - name: Cache Go build cache
         uses: actions/cache@v6
@@ -685,6 +753,40 @@ jobs:
 
           Write-Host "Staged files:" -ForegroundColor Green
           Get-ChildItem $assetsDir | ForEach-Object { Write-Host "  $($_.Name) ($($_.Length) bytes)" }
+
+      - name: Package updater bundles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE '.github/scripts/build-updater-bundle.ps1'
+          & $script `
+            -RepoRoot $env:GITHUB_WORKSPACE `
+            -Version "${{ needs.check.outputs.display_version }}" `
+            -Tag "${{ needs.check.outputs.tag }}" `
+            -Channel "${{ inputs.channel }}" `
+            -Repository "${{ github.repository }}" `
+            -AssetsDir (Join-Path $env:GITHUB_WORKSPACE 'staging')
+
+      - name: Sign updater manifests
+        if: env.UPDATER_SIGNING_READY == 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $assetsDir = Join-Path $env:GITHUB_WORKSPACE 'staging'
+          $pubOut = Join-Path $assetsDir 'updater-public-key.txt'
+          $manifests = @(Get-ChildItem -Path $assetsDir -File -Filter 'updater-manifest-*.json')
+          if ($manifests.Count -eq 0) {
+            Write-Host "::error::no updater manifests to sign"
+            exit 1
+          }
+          foreach ($m in $manifests) {
+            & go run ./updater/signmanifest -in $m.FullName -pub-out $pubOut
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::manifest signing failed for $($m.Name)"
+              exit 1
+            }
+          }
+          Write-Host "::notice::signed $($manifests.Count) updater manifest(s)"
 
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v7
@@ -1187,6 +1289,9 @@ jobs:
     env:
       LLM_CONFIGURED: ${{ secrets.LLM_API_KEY != '' }}
       RELEASE_BOT_READY: ${{ secrets.RELEASE_BOT_APP_ID != '' && secrets.RELEASE_BOT_PRIVATE_KEY != '' }}
+      ANNOUNCEMENT_READY: ${{ secrets.ANNOUNCEMENT_ADMIN_EMAIL != '' && secrets.ANNOUNCEMENT_ADMIN_PASSWORD != '' }}
+      ANNOUNCEMENT_ADMIN_EMAIL: ${{ secrets.ANNOUNCEMENT_ADMIN_EMAIL }}
+      ANNOUNCEMENT_ADMIN_PASSWORD: ${{ secrets.ANNOUNCEMENT_ADMIN_PASSWORD }}
     steps:
       - name: Generate release bot token
         id: bot
@@ -1448,7 +1553,7 @@ jobs:
                 '^flowweaver-windows-(amd64|386|arm64)\.zip$' {
                     $a = $Matches[1]
                     $label = switch ($a) { 'amd64' { 'x64' } '386' { 'x86 (32-bit)' } 'arm64' { 'ARM64' } default { $a } }
-                    return "Windows portable build ($label), zip: extract with the built-in Windows extractor and run flowweaver.exe, no installation required"
+                    return "Windows portable build ($label), zip: extract with the built-in Windows extractor and run flowweaver.exe, no installation required; ships the portable updater and its config for in-app updates"
                 }
                 '^flowweaver-linux-(amd64|arm64|x64)\.tar\.gz$' {
                     $a = $Matches[1]
@@ -1483,6 +1588,21 @@ jobs:
                     $label = if ($a -eq 'amd64') { 'amd64' } else { 'ARM64' }
                     return "Linux AppImage ($label): self-contained GUI, download, chmod +x and run"
                 }
+                '^FlowWeaverUpdater-.*-(x64|x86|arm64)\.exe$' {
+                    return 'Portable auto-updater (native Win32, no runtime or shell dependencies): downloads, verifies and launches the Inno Setup installer in normal interactive mode'
+                }
+                '^flowweaver-.*-windows-(x64|x86|arm64)-update\.zip$' {
+                    return 'Updater bundle: Inno Setup installer plus portable updater, consumed by FlowWeaverUpdater.exe'
+                }
+                '^updater-manifest-.*\.json$' {
+                    return 'Updater manifest: version, SHA-256 digests and download URL for the matching architecture'
+                }
+                '^updater-manifest-.*\.json\.sig$' {
+                    return 'Ed25519 signature over the corresponding updater manifest'
+                }
+                '^updater-public-key\.txt$' {
+                    return 'Base64 Ed25519 public key for verifying updater manifests (set as public_key in updater.json)'
+                }
                 default { return 'Release artifact' }
             }
           }
@@ -1502,6 +1622,11 @@ jobs:
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver_*.deb' -ErrorAction SilentlyContinue | Sort-Object Name
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-*.rpm' -ErrorAction SilentlyContinue | Sort-Object Name
           $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'FlowWeaver-*.AppImage' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'FlowWeaverUpdater-*.exe' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'flowweaver-*-windows-*-update.zip' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'updater-manifest-*.json' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'updater-manifest-*.json.sig' -ErrorAction SilentlyContinue | Sort-Object Name
+          $ordered += Get-ChildItem -Path $assetsDir -File -Filter 'updater-public-key.txt' -ErrorAction SilentlyContinue
 
           $listed = @{}
           foreach ($file in $ordered) {
@@ -1569,7 +1694,11 @@ jobs:
             (Join-Path $assetsDir 'FlowWeaver-macos-*.zip'),
             (Join-Path $assetsDir 'flowweaver_*.deb'),
             (Join-Path $assetsDir 'flowweaver-*.rpm'),
-            (Join-Path $assetsDir 'FlowWeaver-*.AppImage')
+            (Join-Path $assetsDir 'FlowWeaver-*.AppImage'),
+            (Join-Path $assetsDir 'FlowWeaverUpdater-*.exe'),
+            (Join-Path $assetsDir 'flowweaver-*-windows-*-update.zip'),
+            (Join-Path $assetsDir 'updater-manifest-*.json*'),
+            (Join-Path $assetsDir 'updater-public-key.txt')
           )
           $matched = @()
           foreach ($pattern in $patterns) {
@@ -1686,6 +1815,92 @@ jobs:
           }
           Write-Host "::endgroup::"
           Write-Host "::notice::Contributor section taken from GitHub generated notes"
+
+      - name: Generate localized announcement summaries
+        if: env.ANNOUNCEMENT_READY == 'true'
+        continue-on-error: true
+        shell: pwsh
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_MODEL: ${{ secrets.LLM_MODEL }}
+          LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE '.github/scripts/generate-notice-summaries.ps1'
+          & $script `
+            -ReleaseNotesPath (Join-Path $env:GITHUB_WORKSPACE 'staging\RELEASE_NOTES.md') `
+            -OutputPath (Join-Path $env:GITHUB_WORKSPACE 'staging\notice-summaries.md')
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::warning::notice summaries generation failed; the announcement will fall back to the raw changes text"
+          }
+
+      - name: Publish release announcement
+        if: env.ANNOUNCEMENT_READY == 'true'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'https://jetcpp.ccwu.cc'
+          $tag = "${{ needs.check.outputs.tag }}"
+          $displayVersion = "${{ needs.check.outputs.display_version }}"
+          $repo = "${{ github.repository }}"
+          $prerelease = "${{ inputs.prerelease }}".ToLowerInvariant()
+          $link = "https://github.com/$repo/releases/tag/$tag"
+          $summariesPath = Join-Path $env:GITHUB_WORKSPACE 'staging\notice-summaries.md'
+          $body = $null
+          $body_en = $null
+          $body_ru = $null
+          if (Test-Path $summariesPath) {
+            $md = Get-Content -LiteralPath $summariesPath -Raw
+            $zh = [regex]::Match($md, '(?sim)^##\s*zh\s*\r?\n(.*?)(?=\r?\n\s*##\s|\z)').Groups[1].Value.Trim()
+            $en = [regex]::Match($md, '(?sim)^##\s*en\s*\r?\n(.*?)(?=\r?\n\s*##\s|\z)').Groups[1].Value.Trim()
+            $ru = [regex]::Match($md, '(?sim)^##\s*ru\s*\r?\n(.*?)(?=\r?\n\s*##\s|\z)').Groups[1].Value.Trim()
+            if ($zh -and $en -and $ru) {
+              # AI-generated plain-text summaries, one per notice language.
+              $body = "$zh`n`n完整更新日志与下载资产见本次发版页面：$link"
+              $body_en = "$en`n`nFull release notes and downloadable assets: $link"
+              $body_ru = "$ru`n`nПолные примечания и файлы выпуска: $link"
+              Write-Host "::notice::using AI-generated localized announcement summaries"
+            }
+          }
+          if (-not $body) {
+            $notesPath = Join-Path $env:GITHUB_WORKSPACE 'staging\RELEASE_NOTES.md'
+            $changes = ''
+            if (Test-Path $notesPath) {
+              $notes = Get-Content -LiteralPath $notesPath -Raw
+              $match = [regex]::Match($notes, '(?s)##\s*Changes\s*\r?\n(.*?)(?=\r?\n##\s|\z)')
+              if ($match.Success) { $changes = $match.Groups[1].Value.Trim() }
+              if (-not $changes) { $changes = $notes.Trim() }
+            }
+            if ($changes.Length -gt 1600) { $changes = $changes.Substring(0, 1600).TrimEnd() + '...' }
+            if (-not $changes) { $changes = "FlowWeaver v$displayVersion" }
+            Write-Host "::notice::AI summaries unavailable, falling back to the raw changes text"
+            $body = "本次更新内容：`n$changes`n`n完整更新日志与下载资产见本次发版页面：$link"
+            $body_en = "What's new in this release:`n$changes`n`nFull release notes and downloadable assets: $link"
+            $body_ru = "Что нового в этом выпуске:`n$changes`n`nПолные примечания и файлы выпуска: $link"
+          }
+          $level = if ($prerelease -eq 'true') { 'info' } else { 'important' }
+          $loginJson = @{ email = $env:ANNOUNCEMENT_ADMIN_EMAIL; password = $env:ANNOUNCEMENT_ADMIN_PASSWORD } | ConvertTo-Json -Compress
+          $login = Invoke-RestMethod -Method Post -Uri "$base/api/admin/session" -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($loginJson)) -TimeoutSec 30
+          if (-not $login.admin -or -not $login.token) { throw 'admin login failed' }
+          $notice = [ordered]@{
+            id = "release-$tag"
+            title = "FlowWeaver v$displayVersion 发布"
+            title_en = "FlowWeaver v$displayVersion released"
+            title_ru = "Выпущен FlowWeaver v$displayVersion"
+            body = $body
+            body_en = $body_en
+            body_ru = $body_ru
+            level = $level
+            published_at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            link = $link
+            link_text = '查看本次发版说明'
+            pinned = $false
+          }
+          $noticeJson = $notice | ConvertTo-Json -Depth 6
+          $response = Invoke-RestMethod -Method Post -Uri "$base/api/notices?product=flowweaver" -Headers @{ Authorization = "Bearer $($login.token)" } -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($noticeJson)) -TimeoutSec 30
+          if (-not $response.ok) { throw 'announcement publish failed' }
+          Write-Host "::notice::announcement published for $tag (id release-$tag, link $link)"
 
   # ------------------------------------------------------------------
   # Run-level build summary (Android-CI style job summary): one overview

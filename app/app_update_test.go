@@ -1,6 +1,8 @@
 package app
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"strings"
 	"testing"
@@ -137,4 +139,95 @@ func assetNames(assets []ReleaseAsset) []string {
 		names[i] = asset.Name
 	}
 	return names
+}
+
+func TestFilterUpdateAssetsExcludesUpdaterArtifacts(t *testing.T) {
+	if runtime.GOOS != "windows" || runtime.GOARCH != "amd64" || headlessBuild {
+		t.Skip("updater artefact assertion is for the desktop windows/amd64 build")
+	}
+	assets := []githubAsset{
+		{Name: "FlowWeaver-1.31.0-x64Setup.exe", Size: 1, DownloadURL: "https://example.invalid/setup.exe"},
+		{Name: "FlowWeaverUpdater-1.31.0-x64.exe", Size: 1, DownloadURL: "https://example.invalid/updater.exe"},
+		{Name: "flowweaver-1.31.0-windows-x64-update.zip", Size: 1, DownloadURL: "https://example.invalid/bundle.zip"},
+		{Name: "updater-manifest-x64.json", Size: 1, DownloadURL: "https://example.invalid/manifest.json"},
+		{Name: "flowweaver-windows-amd64.zip", Size: 1, DownloadURL: "https://example.invalid/portable.zip"},
+	}
+	got := filterUpdateAssets(assets)
+	for _, asset := range got {
+		lower := strings.ToLower(asset.Name)
+		if strings.HasPrefix(lower, "flowweaverupdater-") || strings.HasSuffix(lower, "-update.zip") {
+			t.Errorf("updater artefact leaked into update list: %s", asset.Name)
+		}
+	}
+	want := []string{"FlowWeaver-1.31.0-x64Setup.exe", "flowweaver-windows-amd64.zip"}
+	if len(got) != len(want) {
+		t.Fatalf("unexpected asset count: got %v, want %v", assetNames(got), want)
+	}
+	for i, name := range want {
+		if got[i].Name != name {
+			t.Errorf("asset %d = %s, want %s", i, got[i].Name, name)
+		}
+	}
+}
+
+// 回归 fixture：<title> 是发布名（可与 tag 不同），tag 必须取自 <link href>。
+// 曾因把 title 当 tag 解析，"SniShaper v1" 被解析成 0，旧发布反超新发布。
+const releasesAtomFixture = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry><title>SniShaper v0.4.1-rc.2</title><link rel="alternate" href="https://github.com/SnishaperTeam/SniShaper/releases/tag/v0.4.1-rc.2"/></entry>
+  <entry><title>SniShaper v0.4.0</title><link rel="alternate" href="https://github.com/SnishaperTeam/SniShaper/releases/tag/v0.4.0"/></entry>
+  <entry><title>v0.3.9-beta.4</title><link rel="alternate" href="https://github.com/SnishaperTeam/SniShaper/releases/tag/v0.3.9-beta.4"/></entry>
+</feed>`
+
+func TestParseReleasesFeed(t *testing.T) {
+	tags, err := parseReleasesFeed(strings.NewReader(releasesAtomFixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"v0.4.1-rc.2", "v0.4.0", "v0.3.9-beta.4"}
+	if len(tags) != len(want) {
+		t.Fatalf("got %v, want %v", tags, want)
+	}
+	for i := range want {
+		if tags[i] != want[i] {
+			t.Fatalf("got %v, want %v", tags, want)
+		}
+	}
+	if _, err := parseReleasesFeed(strings.NewReader("<feed></feed>")); err == nil {
+		t.Fatal("feed without entries must be an error")
+	}
+}
+
+func TestAtomReleasesChannelResolution(t *testing.T) {
+	tags := []string{"v0.4.1-rc.2", "v0.4.0", "v0.3.9-beta.4"}
+	releases := atomReleases(tags)
+	if !releases[0].Prerelease || releases[1].Prerelease {
+		t.Fatalf("prerelease flags must follow the tag channel: %+v", releases)
+	}
+	if rel := resolveChannelRelease(releases, "stable"); rel == nil || rel.TagName != "v0.4.0" {
+		t.Fatalf("stable channel must resolve v0.4.0, got %+v", rel)
+	}
+	if rel := resolveChannelRelease(releases, "rc"); rel == nil || rel.TagName != "v0.4.1-rc.2" {
+		t.Fatalf("rc channel must resolve v0.4.1-rc.2, got %+v", rel)
+	}
+}
+
+func TestFetchReleasesFromMirrorsFirstSuccess(t *testing.T) {
+	fail := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer fail.Close()
+	good := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`[{"tag_name":"v1.30.2","assets":[]}]`))
+	}))
+	defer good.Close()
+	apiURL := "https://api.github.com/repos/SnishaperTeam/SniShaper/releases?per_page=100"
+
+	got := fetchReleasesFromMirrors([]string{fail.URL + "/", good.URL + "/"}, apiURL)
+	if len(got) != 1 || got[0].TagName != "v1.30.2" {
+		t.Fatalf("first successful mirror must win, got %+v", got)
+	}
+	if got := fetchReleasesFromMirrors([]string{fail.URL + "/"}, apiURL); got != nil {
+		t.Fatalf("all mirrors failed: want nil, got %+v", got)
+	}
 }
