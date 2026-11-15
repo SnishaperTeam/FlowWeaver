@@ -50,5 +50,5 @@
   </Capabilities>
 
   <rel:ReleaseChannel>stable</rel:ReleaseChannel>
-  <rel:Version>1.30.0</rel:Version>
+  <rel:Version>1.30.3.1</rel:Version>
 </Package>
