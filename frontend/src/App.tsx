@@ -8,7 +8,7 @@ import WindowControls from './components/WindowControls';
 import ToastProvider from './components/ToastProvider';
 import { appTheme, defaultTheme, availableThemes } from './theme';
 import {
-  GetListenPort, GetCloseToTray, GetAutoStart,
+  GetListenPort, GetCloseToTray, GetAutoStart, GetAutoStartMethod,
   GetShowMainWindowOnAutoStart, GetAutoEnableProxyOnAutoStart, GetAutoEnableSysProxyOnAutoStart, GetAutoUpdateRules,
   GetTUNConfig, GetTUNStatus, GetCloudflareConfig,
   GetCAInstallStatus, GetInstalledCerts, GetCloudflareIPStats,
@@ -41,6 +41,7 @@ interface SettingsCache {
   port: number;
   closeToTray: boolean;
   autoStart: boolean;
+  autoStartMethod: string;
   showMainOnAutoStart: boolean;
   autoEnableProxyOnAutoStart: boolean;
   autoEnableSysProxyOnAutoStart: boolean;
@@ -59,6 +60,7 @@ interface SettingsCache {
 
 const defaultCache: SettingsCache = {
   port: 8080, closeToTray: false, autoStart: false,
+  autoStartMethod: 'task',
   showMainOnAutoStart: true, autoEnableProxyOnAutoStart: false,
   autoEnableSysProxyOnAutoStart: true,
   autoUpdateRules: true,
@@ -108,9 +110,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const fastLoad = async () => {
       try {
-        const [language, port, closeToTray, autoStart,
+        const [language, port, closeToTray, autoStart, autoStartMethod,
           showMainOnAutoStart, autoEnableProxyOnAutoStart, autoEnableSysProxyOnAutoStart, autoUpdateRules, cfConfig, ipv6Available, savedThemeId] = await Promise.all([
-          GetLanguage(), GetListenPort(), GetCloseToTray(), GetAutoStart(),
+          GetLanguage(), GetListenPort(), GetCloseToTray(), GetAutoStart(), GetAutoStartMethod(),
           GetShowMainWindowOnAutoStart(), GetAutoEnableProxyOnAutoStart(), GetAutoEnableSysProxyOnAutoStart(), GetAutoUpdateRules(), GetCloudflareConfig(), GetIPv6Available(), GetTheme()
         ]);
         if (language) {
@@ -132,6 +134,7 @@ const App: React.FC = () => {
           port: port ?? prev.port,
           closeToTray: closeToTray ?? prev.closeToTray,
           autoStart: autoStart ?? prev.autoStart,
+          autoStartMethod: typeof autoStartMethod === 'string' && autoStartMethod ? autoStartMethod : prev.autoStartMethod,
           showMainOnAutoStart: showMainOnAutoStart ?? prev.showMainOnAutoStart,
           autoEnableProxyOnAutoStart: autoEnableProxyOnAutoStart ?? prev.autoEnableProxyOnAutoStart,
           autoEnableSysProxyOnAutoStart: autoEnableSysProxyOnAutoStart ?? prev.autoEnableSysProxyOnAutoStart,
