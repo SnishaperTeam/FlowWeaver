@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,11 +16,18 @@ import (
 	"flowweaver/pkg/sysproxy"
 )
 
+// localProxyServer returns the host:port local consumers (system proxy, TUN,
+// diagnostics) should use to reach the proxy: a wildcard listen address is
+// not a dialable target, so it maps to 127.0.0.1.
+func (a *App) localProxyServer(port int) string {
+	return net.JoinHostPort(common.LocalProxyHost(a.GetListenAddress()), strconv.Itoa(port))
+}
+
 func (a *App) isManagedSystemProxy(status SystemProxyStatus) bool {
 	if !status.Enabled {
 		return false
 	}
-	expected := fmt.Sprintf("127.0.0.1:%d", a.GetListenPort())
+	expected := a.localProxyServer(a.GetListenPort())
 	if strings.EqualFold(strings.TrimSpace(status.Server), expected) {
 		return true
 	}
@@ -70,7 +79,7 @@ func (a *App) applySystemProxy(enabled bool, port int) error {
 }
 
 func (a *App) applySystemProxySync(enabled bool, port int, sync bool) error {
-	expected := fmt.Sprintf("127.0.0.1:%d", port)
+	expected := a.localProxyServer(port)
 
 	apply := func() error {
 		a.systemProxyOpMu.Lock()
@@ -97,7 +106,7 @@ func (a *App) applySystemProxySync(enabled bool, port int, sync bool) error {
 
 		var err error
 		if enabled {
-			err = sysproxy.EnableSystemProxy(port)
+			err = sysproxy.SetSystemProxy(true, expected)
 		} else {
 			err = sysproxy.DisableSystemProxy()
 		}
@@ -108,7 +117,7 @@ func (a *App) applySystemProxySync(enabled bool, port int, sync bool) error {
 			if err := a.saveManagedSystemProxyMarker(expected); err != nil {
 				a.appendLog("[warn] Failed to save managed system proxy marker: " + err.Error())
 			}
-			a.appendLog(fmt.Sprintf("[action] EnableSystemProxy success: 127.0.0.1:%d", port))
+			a.appendLog(fmt.Sprintf("[action] EnableSystemProxy success: %s", expected))
 		} else {
 			if err := a.clearManagedSystemProxyMarker(); err != nil {
 				a.appendLog("[warn] Failed to clear managed system proxy marker: " + err.Error())
@@ -154,11 +163,15 @@ func (a *App) EnableSystemProxy() error {
 
 	addr := a.proxyServer.GetListenAddr()
 	var port int
-	fmt.Sscanf(addr, "127.0.0.1:%d", &port)
+	if host, portStr, err := net.SplitHostPort(addr); err == nil && host != "" {
+		if p, err := strconv.Atoi(portStr); err == nil {
+			port = p
+		}
+	}
 	if port == 0 {
 		port = 8080
 	}
-	if err := common.WaitForListen(addr, 500*time.Millisecond); err != nil {
+	if err := common.WaitForListen(a.localProxyServer(port), 500*time.Millisecond); err != nil {
 		a.appendLog("[warn] EnableSystemProxy probe timeout (expected if already running): " + err.Error())
 	}
 	err := a.applySystemProxy(true, port)
@@ -166,7 +179,7 @@ func (a *App) EnableSystemProxy() error {
 		a.appendLog("[error] EnableSystemProxy failed: " + err.Error())
 		return err
 	}
-	a.appendLog(fmt.Sprintf("[action] EnableSystemProxy requested (async): 127.0.0.1:%d", port))
+	a.appendLog(fmt.Sprintf("[action] EnableSystemProxy requested (async): %s", a.localProxyServer(port)))
 	return nil
 }
 

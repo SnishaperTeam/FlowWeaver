@@ -266,7 +266,7 @@ func (a *App) rulesFetchCandidates() []rulesFetchCandidate {
 	}
 
 	if a.IsProxyRunning() {
-		if proxyURL, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", a.GetListenPort())); err == nil {
+		if proxyURL, err := url.Parse("http://" + a.localProxyServer(a.GetListenPort())); err == nil {
 			viaProxy := &http.Client{
 				Timeout: 12 * time.Second,
 				Transport: &http.Transport{

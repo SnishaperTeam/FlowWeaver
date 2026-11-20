@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -137,7 +138,7 @@ func newCoreRuntime() (*coreRuntime, error) {
 		certPath:    common.ConfigCertDir(execDir),
 		ruleManager: ruleManager,
 		subStore:    subStore,
-		proxyServer: proxy.NewProxyServer("127.0.0.1:"+port,
+		proxyServer: proxy.NewProxyServer(net.JoinHostPort(ruleManager.GetListenAddress(), port),
 			proxy.WithLogger(corelog.Std),
 			proxy.WithProductName(ProductName),
 		),
@@ -236,7 +237,7 @@ func (r *coreRuntime) reloadConfig() error {
 	if port == "" {
 		port = "8080"
 	}
-	if err := r.proxyServer.SetListenAddr("127.0.0.1:" + port); err != nil {
+	if err := r.proxyServer.SetListenAddr(net.JoinHostPort(r.ruleManager.GetListenAddress(), port)); err != nil {
 		return err
 	}
 	r.proxyServer.SetRuleManager(r.ruleManager)
@@ -367,7 +368,7 @@ func (r *coreRuntime) startProxy() error {
 		return err
 	}
 	addr := r.proxyServer.GetListenAddr()
-	if err := common.WaitForListen(addr, 2*time.Second); err != nil {
+	if err := common.WaitForListen(localDialAddr(addr), 2*time.Second); err != nil {
 		_ = r.proxyServer.Stop()
 		return fmt.Errorf("proxy started but not listening on %s: %w", addr, err)
 	}
@@ -416,8 +417,10 @@ func (r *coreRuntime) startTUN() (err error) {
 		return err
 	}
 	tunCfg := r.ruleManager.GetTUNConfig()
-	r.appendLog("[core] startTUN: calling nativeTUN.Start with proxy=" + "127.0.0.1:" + listenPort)
-	proxyAddr := "127.0.0.1:" + listenPort
+	// TUN 内部回环指向本机可达地址：通配监听（0.0.0.0/::）不是可拨目标，
+	// 统一经 LocalProxyHost 归一到 127.0.0.1。
+	proxyAddr := net.JoinHostPort(common.LocalProxyHost(r.ruleManager.GetListenAddress()), listenPort)
+	r.appendLog("[core] startTUN: calling nativeTUN.Start with proxy=" + proxyAddr)
 	if err = r.nativeTUN.Start(tunCfg, proxyAddr); err != nil {
 		r.appendLog("[core] startTUN: nativeTUN.Start failed: " + err.Error())
 		return err
@@ -570,8 +573,11 @@ func (r *coreRuntime) failTUNStart(err error) {
 
 func (r *coreRuntime) getListenPort() int {
 	addr := r.proxyServer.GetListenAddr()
-	var port int
-	fmt.Sscanf(addr, "127.0.0.1:%d", &port)
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	port, _ := strconv.Atoi(portStr)
 	return port
 }
 
@@ -589,12 +595,23 @@ func (r *coreRuntime) setListenPort(port int) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("invalid port number: %d", port)
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	addr := net.JoinHostPort(r.ruleManager.GetListenAddress(), fmt.Sprintf("%d", port))
 	if err := r.proxyServer.SetListenAddr(addr); err != nil {
 		return err
 	}
 	r.ruleManager.SetListenPort(fmt.Sprintf("%d", port))
 	return r.ruleManager.SaveConfig()
+}
+
+// localDialAddr converts a proxy listen address into one a local client can
+// dial: wildcard binds ("0.0.0.0", "::") are not dial targets and map to
+// 127.0.0.1.
+func localDialAddr(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return net.JoinHostPort(common.LocalProxyHost(host), port)
 }
 
 func (r *coreRuntime) popRouteEvents() []RouteEvent {
