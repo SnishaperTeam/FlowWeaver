@@ -60,6 +60,7 @@ const About: React.FC = () => {
   const [downloadTotal, setDownloadTotal] = useState<number>(0);
   const [pendingUpdate, setPendingUpdate] = useState<string | null>(null);
   const [releaseChannel, setReleaseChannel] = useState<string>('stable');
+  const [contributors, setContributors] = useState<string>('mechrevo, dongzheyu, JetCPP-dongle');
   const downloadingRef = useRef<string | null>(null);
 
   const refreshPending = useCallback(async () => {
@@ -80,6 +81,25 @@ const About: React.FC = () => {
   useEffect(() => {
     refreshPending();
   }, [refreshPending]);
+
+  useEffect(() => {
+    // Show cached contributors immediately; refreshed below when GitHub is reachable.
+    try {
+      const cached = localStorage.getItem('about.contributors');
+      if (cached) setContributors(cached);
+    } catch { /* ignore */ }
+    fetch('https://api.github.com/repos/SnishaperTeam/FlowWeaver/contributors?per_page=100')
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((list: { login: string; type: string }[]) => {
+        const names = list.filter((c) => c.type !== 'Bot').map((c) => c.login);
+        if (names.length) {
+          const joined = names.join(', ');
+          try { localStorage.setItem('about.contributors', joined); } catch { /* ignore */ }
+          setContributors(joined);
+        }
+      })
+      .catch(() => { /* unreachable: keep cached or static list */ });
+  }, []);
 
   useEffect(() => {
     const off = EventsOn('update:download_progress', (data: any) => {
@@ -106,7 +126,7 @@ const About: React.FC = () => {
   const handleOpenBeta = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/actions');
   const handleOpenAdaptation = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/issues/95');
   const handleOpenDevPlan = () => OpenURL('https://github.com/SnishaperTeam/FlowWeaver/issues/36');
-  const handleOpenQQGroup = () => OpenURL('https://qm.qq.com/q/GtBOkAOiME');
+  const handleOpenMatrix = () => OpenURL('https://matrix.to/#/!j7cXGinN6v1-6-FyjGKxAfoZrVjzQWRgrOmc3l6zxj4?via=matrix.org');
 
   const handleCheckUpdate = async () => {
     if (checkingUpdate) return;
@@ -191,11 +211,11 @@ const About: React.FC = () => {
   const communityCards = [
     { onClick: handleOpenAdaptation, icon: <Megaphone size={24} />, title: t('about.site_adaptation'), desc: t('about.site_adaptation_desc'), action: t('about.participate_now'), color: 'primary.main', full: false },
     { onClick: handleOpenDevPlan, icon: <Map size={24} />, title: t('about.development_plan'), desc: t('about.development_plan_desc'), action: t('about.view_plan'), color: 'success.main', full: false },
-    { onClick: handleOpenQQGroup, icon: <Users size={24} />, title: t('about.qq_group'), desc: t('about.qq_group_desc'), action: t('about.join_group'), color: 'warning.main', full: true },
+    { onClick: handleOpenMatrix, icon: <Users size={24} />, title: t('about.matrix'), desc: t('about.matrix_desc'), action: t('about.join_group'), color: 'warning.main', full: true },
   ];
 
   const infoCards = [
-    { icon: <Heart size={22} />, title: t('about.contributors'), value: 'mechrevo, dongzheyu, JetCPP-dongle', color: 'success.main', valueColor: 'text.primary' },
+    { icon: <Heart size={22} />, title: t('about.contributors'), value: contributors, color: 'success.main', valueColor: 'text.primary' },
     { icon: <Users size={22} />, title: t('about.maintainers'), value: 'JetCPP Team, FlowWeaver Team', color: 'warning.main', valueColor: 'text.primary' },
     { icon: <Globe size={22} />, title: t('about.website'), value: 'jetcpp.ccwu.cc', color: 'primary.main', valueColor: 'primary.main', onClick: handleOpenWebsite },
     { icon: <RefreshCcw size={22} />, title: 'GitHub', value: 'SnishaperTeam/FlowWeaver', color: 'text.primary', valueColor: 'text.primary', onClick: handleOpenGitHub },
@@ -347,7 +367,7 @@ const About: React.FC = () => {
           )}
           <Button onClick={handleOpenWebsite} variant="outlined" size="large" startIcon={<Globe size={18} />}>{t('about.website')}</Button>
           <Button onClick={handleOpenGitHub} variant="outlined" size="large" startIcon={<LinkIcon size={18} />}>GitHub</Button>
-          <Button onClick={handleOpenQQGroup} variant="outlined" size="large" startIcon={<Users size={18} />}>{t('about.qq_group')}</Button>
+          <Button onClick={handleOpenMatrix} variant="outlined" size="large" startIcon={<Users size={18} />}>{t('about.matrix')}</Button>
         </Box>
 
         <Box component="footer" sx={{ textAlign: 'center', pb: 2 }}>
