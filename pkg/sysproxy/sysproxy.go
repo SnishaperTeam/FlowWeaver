@@ -23,6 +23,9 @@ var manager = coresysproxy.New(coresysproxy.WithRunAsUser(os.Getenv("SUDO_USER")
 // GetSystemProxyStatus 返回当前系统代理状态（带 2 秒缓存）。
 func GetSystemProxyStatus() SystemProxyStatus { return manager.Status() }
 
+// SetSystemProxy 启用或关闭系统代理；启用时 server 形如 127.0.0.1:7890。
+func SetSystemProxy(enable bool, server string) error { return manager.Set(enable, server) }
+
 // EnableSystemProxy 把系统代理指向本机指定端口。
 func EnableSystemProxy(port int) error { return manager.Enable(port) }
 
