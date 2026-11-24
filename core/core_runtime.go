@@ -151,6 +151,10 @@ func newCoreRuntime() (*coreRuntime, error) {
 		r.proxyServer.GetDoHResolver(), r.appendTunLog)
 	// TUN UDP traffic must be able to use the bound subscription node.
 	r.nativeTUN.SetUDPRelay(r.proxyServer)
+	// TUN fake-ip UDP：按站点规则重写 QUIC Initial（CircumVolve QUIC rewrite）。
+	// MatchQUICStrategies 每次调用都读当前规则，规则热加载自动生效；
+	// 未命中重写策略的域名保持丢弃回退 TCP 的旧行为。
+	r.nativeTUN.SetQUICRewrite(r.ruleManager.MatchQUICStrategies)
 
 	if err := r.start(); err != nil {
 		return nil, err
