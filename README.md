@@ -25,6 +25,23 @@
 
 两者的代理引擎均来自独立库 **[snishaper-core](https://github.com/SnishaperTeam/snishaper-core)**：代理服务、规则引擎、DoH 解析、证书管理与 TUN 数据面由该库提供，本仓库只保留应用层（GUI、CLI、系统集成与规则数据）。
 
+<div align="center">
+<table>
+<tr>
+<td width="50%">
+
+[![FlowWeaver](https://github-readme-stats.vercel.app/api/pin/?username=SnishaperTeam&repo=FlowWeaver)](https://github.com/SnishaperTeam/FlowWeaver)
+
+</td>
+<td width="50%">
+
+[![snishaper-core](https://github-readme-stats.vercel.app/api/pin/?username=SnishaperTeam&repo=snishaper-core&show_owner=true)](https://github.com/SnishaperTeam/snishaper-core)
+
+</td>
+</tr>
+</table>
+</div>
+
 ---
 
 ## 交流群组
@@ -86,6 +103,29 @@ GUI 用户请从 [Releases](https://github.com/SnishaperTeam/FlowWeaver/releases
 ## 文档
 
 技术原理与自定义规则指南请参阅 [**GitHub Wiki**](https://github.com/SnishaperTeam/FlowWeaver/wiki)。
+
+---
+
+## 致谢
+
+本项目受益于以下优秀开源项目的启发：
+
+<div align="center">
+<table>
+<tr>
+<td width="50%">
+
+[![DoH-ECH-Demo](https://github-readme-stats.vercel.app/api/pin/?username=0xCaner&repo=DoH-ECH-Demo&show_owner=true)](https://github.com/0xCaner/DoH-ECH-Demo)
+
+</td>
+<td width="50%">
+
+[![lumine](https://github-readme-stats.vercel.app/api/pin/?username=moi-si&repo=lumine&show_owner=true)](https://github.com/moi-si/lumine)
+
+</td>
+</tr>
+</table>
+</div>
 
 ---
 
