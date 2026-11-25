@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gdamore/tcell/v2"
+	"github.com/gdamore/tcell/v3"
 	"github.com/rivo/tview"
 
 	"flowweaver/app"
