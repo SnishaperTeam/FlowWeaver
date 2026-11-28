@@ -3,11 +3,7 @@ module flowweaver
 go 1.27.4
 
 require (
-<<<<<<< HEAD
-	github.com/SnishaperTeam/snishaper-core v0.8.13
-=======
 	github.com/SnishaperTeam/snishaper-core v0.8.14
->>>>>>> 7ebadd7 (chore: bump snishaper-core to v0.8.14)
 	github.com/admpub/go-download/v2 v2.2.0
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/miekg/dns v1.1.73
